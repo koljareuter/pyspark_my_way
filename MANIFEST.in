@@ -1,0 +1,2 @@
+include pyspark/data/superdark_coeffs_mean.fits.fz
+include pyspark/data/superbad_60s.fits.fz

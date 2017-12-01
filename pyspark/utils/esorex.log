@@ -1,0 +1,8 @@
+
+Start time     : 2017-11-29T10:23:39
+Program name   : esorex
+Severity level : [ INFO  ] 
+
+10:23:39 [ INFO  ] : Esorex, version 3.10.2
+10:23:39 [ INFO  ] : using the libraries: CPL = 6.4.1, CFITSIO = 3.35, WCSLIB = 4.16, FFTW (double and single precision)
+
