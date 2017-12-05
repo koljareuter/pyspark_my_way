@@ -21,9 +21,11 @@
 #    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 #    DEALINGS IN THE SOFTWARE.
 #
-# This version of the code has been modified by Trevor Mendel for
-# use with KMOS data and inclusion in the pySPARK software package
+####################################################################
+# Nov. 2017 - This version of the code has been modified by Trevor Mendel 
+# for use with KMOS data and inclusion in the pySPARK software package 
 # including adaptations for working with many sky exposures.
+####################################################################
 
 from __future__ import absolute_import, division, print_function
 
