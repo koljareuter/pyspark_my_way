@@ -122,7 +122,7 @@ def fix_detector_levels(frame_list, subdir=None, inputdir=None, outputdir=None, 
     nframes = len(frame_list)
 
     #iterate over each frame and apply requested corrections
-    for frame in frame_list[:3]:
+    for frame in frame_list:
         fname = os.path.split(frame)[1]
         #make a copy of the input frame to outputdir/subdir
         if logger is not None:
