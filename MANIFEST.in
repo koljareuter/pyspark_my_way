@@ -1,2 +1,8 @@
 include pyspark/data/superdark_coeffs_mean.fits.fz
 include pyspark/data/superbad_60s.fits.fz
+include pyspark/data/test_ZAPv2_SVD_YJ_n500004.fits
+include pyspark/data/test_ZAPv2_SVD_H_n500004.fits
+include pyspark/data/test_ZAPv2_SVD_K_n500004.fits
+include pyspark/data/ZAPv1_SVD_YJ_n500004.fits
+include pyspark/data/ZAPv1_SVD_H_n500004.fits
+include pyspark/data/ZAPv1_SVD_K_n500004.fits

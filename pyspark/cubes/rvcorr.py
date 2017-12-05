@@ -5,7 +5,7 @@ corrections, which was in turn adapted from
 https://gist.github.com/StuartLittlefair/5aaf476c5d7b52d20aa9544cfaa936a1
 """
 from __future__ import print_function, division
-
+import os
 import numpy as np
 import astropy.units as u
 import astropy.constants as c
@@ -15,9 +15,11 @@ from astropy.coordinates import (SkyCoord, EarthLocation, solar_system,
 from astropy.time import Time
 
 
-#from ..utils.sinc_interpolation import sinc_interpolate
+from ..utils.interpolation import interpolate
+from ..utils.fileutils import (get_obs_exposures, duplicate)
+from ..utils.obsutils import reconstruct_wave
 
-__all__ = ["rvcorr_cube", "rvcorr_exposure", "get_rvcorr", "calc_vbary"]
+__all__ = ["rvcorr_cube", "get_rvcorr", "calc_vbary", "velocity_correct"]
 
 
 #def apply_barycentric_correction(df, barycor_vel,  colwav='wave', colwavnew='newwave'):
@@ -122,8 +124,13 @@ def rvcorr_cube(wave_in, array_in, vbary):
     array_out: ndarray
         Datacube corrected for barycentric velocity.
     """
-
     wave_rvcorr = wave_in * (1.0 + (vbary / c.c))
+
+    #make sure we're working with doubles for the interpolation
+    idt = array_in.dtype
+
+    array_in = np.asarray(array_in, dtype=np.float64)
+    wave_in = np.asarray(wave_in, dtype=np.float64)
 
     #interpolate data from shifted wavelength grid back on to the input grid
     _, nx, ny = array_in.shape
@@ -134,35 +141,44 @@ def rvcorr_cube(wave_in, array_in, vbary):
             old_spec = array_in[:, ix, iy]
             goodpix = goodpix_in[:, ix, iy]
             if np.count_nonzero(goodpix):
-                new_spec = sinc_interpolate(wave_in, wave_rvcorr, old_spec)
+                new_spec = interpolate(wave_in, wave_rvcorr, old_spec)
                 new_spec[~goodpix | ~np.isfinite(new_spec)] = np.nan
                 array_out[:,ix,iy] = new_spec
     
-    return array_out
-
-
-def rvcorr_exposure(kmos_frame, suffix='heliocorr'):
-    """ Apply barycentric velocity correction to every data cube in an
-    a given KMOS exposure.  Writes output into the same path with the
-    given suffix appended.
-
-    Parameters
-    ----------
-    kmos_frame: string
-        Full path to the KMOS exposure to be corrected
-
-    """
-
-    #set up path and file names
-    file_path = '/'.join(kmos_frame.split('/')[:-1])
-    file_name_in = kmos_frame.split('/')[-1]
-    file_name_out = '{0}_{1}.fits'.format(file_name_in[:-5], suffix)
-
-    #read in the primary fits header, add comments and initialize
-    #output fits HDU
+    return np.asarray(array_out, dtype=idt)
 
 
 
-    return
+def velocity_correct(logger=None, subdir=None, obsband=None, rvcorr=True,
+		     **kwargs):
+
+    # check that velocity correction is requested
+    if not rvcorr:
+        return
+
+    # get list of frames to process for barycentric correction.  Assumes 
+    # working with sky-subtracted frames in science directory
+    exposures = get_obs_exposures(subdir=os.path.join(subdir, 'science'), 
+                                  obsband=obsband, suffix='s_i', **kwargs)
+
+    # iterate over each exposure, apply rv correction
+    for exposure, _, _ in exposures:
+        fpath = os.path.split(exposure)[0]
+
+        #copy object to output
+        exp_corr = duplicate(exposure, outputdir=fpath, suffix='rv')
+
+        with fits.open(exp_corr, mode='update') as ofile:
+            vbary = get_rvcorr(ofile[0].header) 
+            for ifu in range(1,25):
+                cube = np.array(ofile[ifu].data)
+                try:
+                    oz, ox, oy = cube.shape
+                except ValueError:
+                    continue
+                else:
+                    wave = reconstruct_wave(ofile[ifu].header)
+                    corr_cube = rvcorr_cube(wave, cube, vbary)
+                    ofile[ifu].data = corr_cube
 
 

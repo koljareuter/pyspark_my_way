@@ -5,7 +5,8 @@ import shutil
 import subprocess
 
 __all__ = ["nanMAD", "hl_diff", "hsm", "read_cube", "match_obs_rotator",
-           "get_cal_rotator", "get_obs_extensions", "run_spark", "find_lines"]
+           "get_cal_rotator", "get_obs_extensions", "run_spark", "find_lines",
+           "reconstruct_wave"]
 
 def nanMAD(a, axis=None):
     """Compute the Median Absolute Deviation accounting
@@ -111,13 +112,12 @@ def get_cal_rotator(cal_file):
     return pro_naangles
 
 
-def match_obs_rotator(obs_file, cal_rot, get_second=False):
+def match_obs_rotator(head, cal_rot, get_second=False):
     
     """find closest match in a list of calibration rotation angles
     returns appropriate rotator index and closest match.
     """
 
-    head = obs_file[0].header
     obs_rot = head['HIERARCH ESO OCS ROT NAANGLE']
 
     #find closest from calibration rotator angles
@@ -216,4 +216,18 @@ def find_lines(spec_in):
     lrange = (search_right == 1) & (search_left == 1)
 
     return lrange
+
+
+def reconstruct_wave(header):
+    """ Reconstruct wavelength array based on input header.
+    """
+    zsize = header['NAXIS3']
+    crval = header['CRVAL3']
+    crpix = header['CRPIX3']
+    try:
+        cdelt = header['CDELT3']
+    except:
+        cdelt = header['CD3_3']
+
+    return (np.arange(zsize)+1 - crpix)*cdelt + crval
 

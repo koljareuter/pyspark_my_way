@@ -24,9 +24,9 @@ class CleanCommand(Command):
         self.all = True
         self._clean_me = []
         self._clean_trees = []
-        self._clean_exclude = ["mpfit.c"]
+        self._clean_exclude = []
 
-        for root, dirs, files in list(os.walk('kmos2d')):
+        for root, dirs, files in list(os.walk('pyspark')):
             for f in files:
                 if f in self._clean_exclude:
                     continue
@@ -38,7 +38,7 @@ class CleanCommand(Command):
                 if d == '__pycache__':
                     self._clean_trees.append(pjoin(root, d))
 
-        for d in ('build',):
+        for d in ('build', 'dist', ):
             if os.path.exists(d):
                 self._clean_trees.append(d)
 
@@ -59,26 +59,11 @@ class CleanCommand(Command):
                 pass
 
 
-
-
 try:
     from Cython.Build import cythonize
 except ImportError:
     raise ImportError("pySPARK requires cython to install")
 
-##compile the cython modules as necessary
-#class sdist(_sdist):
-#    def run(self):
-#        try:
-#            from Cython.Build import cythonize
-#        except ImportError:
-#            raise ImportError("kmos2d_drp requires cython to install")
-#        else:
-#            cythonize(['kmos2d/cbroaden.pyx', 
-#                       'kmos2d/fit_sky.pyx',
-#                       'kmos2d/cmpfit.pyx',
-#                       'kmos2d/sincrebin.pyx'])
-#            _sdist.run(self)
 
 class build_ext(_build_ext):
     def build_extension(self, ext):
@@ -87,17 +72,15 @@ class build_ext(_build_ext):
 
 if __name__ == "__main__":
 
-    include_dirs = [
-            "include",
-            numpy.get_include(),
-            ]
+    include_dirs = ["include",
+                    numpy.get_include(),
+                   ]
 
-    #cb_ext = Extension("kmos2d.cbroaden",   sources=["kmos2d/cbroaden.pyx"], include_dirs=include_dirs)
-    #fs_ext = Extension("kmos2d.fit_sky",    sources=["kmos2d/fit_sky.pyx"], include_dirs=include_dirs)
-    #mp_ext = Extension("kmos2d.cmpfit",     sources=["kmos2d/cmpfit.pyx","kmos2d/mpfit.c"], include_dirs=include_dirs)
-    #sr_ext = Extension("kmos2d.sincrebin",  sources=["kmos2d/sincrebin.pyx"], include_dirs=include_dirs)
-
-    #ext_modules = cythonize([cb_ext, fs_ext, mp_ext, sr_ext])
+    cmodules = []
+    cmodules += [Extension("pyspark.utils.interpolation", 
+                           ["pyspark/utils/interpolation.pyx"], 
+                           include_dirs=include_dirs)]
+    ext_modules = cythonize(cmodules)
 
     #scripts = ['scripts/'+file for file in os.listdir('scripts/')]  
     scripts = []
@@ -105,18 +88,15 @@ if __name__ == "__main__":
     cmdclass = {'clean': CleanCommand,
                 'build_ext': build_ext}
 
-    if sys.version_info[0] < 3:
-        import __builtin__ as builtins
-    else:
-        import builtins
-    builtins.__KMOS2D_SETUP__ = True
-    import pyspark
+  
+    with open('pyspark/_version.py') as f:
+        exec(f.read())
 
     setup(
         name = "pyspark",
-        version=pyspark.__version__,
+        version= __version__,
         author="Trevor Mendel",
-        #ext_modules = ext_modules,
+        ext_modules = ext_modules,
         cmdclass = cmdclass,
         scripts = scripts, 
         packages=["pyspark",
@@ -125,8 +105,15 @@ if __name__ == "__main__":
                   "pyspark.calibration",
                   "pyspark.cubes",
                   "pyspark.sky"],
-        package_data={"pyspark": ["data/superdark_coeffs_mean.fits.fz", "data/superbad_60s.fits.fz"]},
+        package_data={"pyspark": ["data/superdark_coeffs_mean.fits.fz", 
+                                  "data/superbad_60s.fits.fz",
+                                  "data/test_ZAPv2_SVD_YJ_n500004.fits",
+                                  "data/test_ZAPv2_SVD_H_n500004.fits",
+                                  "data/test_ZAPv2_SVD_K_n500004.fits",
+                                  "data/ZAPv1_SVD_YJ_n500004.fits",
+                                  "data/ZAPv1_SVD_H_n500004.fits",
+                                  "data/ZAPv1_SVD_K_n500004.fits"]},
         include_package_data=True,
-        zip_safe=False
+        zip_safe=False,
     )
 
