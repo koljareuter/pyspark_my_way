@@ -52,7 +52,7 @@ from scipy.interpolate import interp1d
 from sklearn.decomposition import PCA
 from sklearn.decomposition.base import _BasePCA
 
-from ._zap_version import __version__
+from ._zap_version import __version2__ as __version__
 
 __all__ = ['process', 'SVDoutput', 'nancleanfits', 'contsubfits', 'Zap',
            'wmedian']
@@ -170,7 +170,7 @@ def process(cubefits, cube=None, hdr=None, outcubefits='DATACUBE_ZAP.fits', clea
 
     """
     if logger is not None:
-        logger.info('Running ZAP %s !', __version__)
+        logger.debug('- Running ZAP %s !', __version__)
     t0 = time()
     if not isinstance(cubefits, string_types):
         raise TypeError('The process method only accepts a single datacube '
@@ -199,7 +199,7 @@ def process(cubefits, cube=None, hdr=None, outcubefits='DATACUBE_ZAP.fits', clea
                            instrument=instrument, boost=boost)
 
     zobj = Zap(cubefits, pca_class=pca_class, n_components=n_components,
-               instrument=instrument, cube=cube, hdr=hdr)
+               instrument=instrument, cube=cube, hdr=hdr, logger=logger)
     zobj._run(clean=clean, zlevel=zlevel, cfwidth=cfwidthSP, cftype=cftype,
               nevals=nevals, extSVD=extSVD, boost=boost, contmask=contmask,
               reject_factor=reject_factor)
@@ -491,7 +491,7 @@ class Zap(object):
         # eigenspace Subset
         if pca_class is not None:
             if self.logger is not None:
-                self.logger.info('Using %s', pca_class)
+                self.logger.debug('Using %s', pca_class)
             self.pca_class = pca_class
         else:
             self.pca_class = PCA
@@ -624,7 +624,7 @@ class Zap(object):
         # extract those positions into a 2d array
         self.stack = self.cube[:, self.y, self.x]
         if self.logger is not None:
-            self.logger.info('Extract to 2D, %d valid spaxels (%d%%)', len(self.x),
+            self.logger.debug('Extract to 2D, %d valid spaxels (%d%%)', len(self.x),
                         len(self.x) / np.prod(self.cube.shape[1:]) * 100)
 
     def _externalzlevel(self, extSVD):
@@ -659,16 +659,16 @@ class Zap(object):
         self.run_zlevel = calctype
         if calctype == 'none':
             if self.logger is not None:
-                self.logger.info('Skipping zlevel subtraction')
+                self.logger.debug('Skipping zlevel subtraction')
             return
 
         if calctype == 'median':
             if self.logger is not None:
-                self.logger.info('Median zlevel subtraction')
+                self.logger.debug('Median zlevel subtraction')
             func = _imedian
         elif calctype == 'sigclip':
             if self.logger is not None:
-                self.logger.info('Iterative Sigma Clipping zlevel subtraction')
+                self.logger.debug('Iterative Sigma Clipping zlevel subtraction')
             func = _isigclip
         else:
             raise ValueError('Unknow zlevel type, must be none, median, or '
@@ -697,7 +697,7 @@ class Zap(object):
             raise ValueError("cftype must be weight, median, fit or none, "
                              "got {}".format(cftype))
         if self.logger is not None:
-            self.logger.info('Applying Continuum Filter, cftype=%s', cftype)
+            self.logger.debug('Applying Continuum Filter, cftype=%s', cftype)
         self._cftype = cftype
         self._cfwidth = cfwidth
 
@@ -769,7 +769,7 @@ class Zap(object):
 
         """
         if self.logger is not None:
-            self.logger.info('Calculating SVD on %d segments (%s)', len(self.pranges),
+            self.logger.info('--- Calculating SVD on %d segments (%s)', len(self.pranges),
                     self.pranges)
         indices = [x[0] for x in self.pranges[1:]]
         # normstack = self.stack - self.contarray
@@ -780,7 +780,7 @@ class Zap(object):
             if self.n_components is not None:
                 ncomp = max(x.shape[1] * self.n_components, 60)
                 if self.logger is not None:
-                    self.logger.info('Segment %d, computing %d eigenvectors out of %d',
+                    self.logger.debug('--- Segment %d, computing %d eigenvectors out of %d',
                                 i, ncomp, x.shape[1])
             else:
                 ncomp = None
@@ -806,15 +806,15 @@ class Zap(object):
             if len(nevals) != nranges:
                 nevals = np.array([nevals[0]])
                 if self.logger is not None:
-                    self.logger.info('Chosen eigenspectra array does not correspond to '
+                    self.logger.warning('--- Chosen eigenspectra array does not correspond to '
                                 'number of segments')
             else:
                 if self.logger is not None:
-                    self.logger.info('Choosing %s eigenspectra for segments', nevals)
+                    self.logger.info('--- Choosing %s eigenspectra for segments', nevals)
 
         if len(nevals) == 1:
             if self.logger is not None:
-                self.logger.info('Choosing %s eigenspectra for all segments', nevals)
+                self.logger.debug('-- Choosing %s eigenspectra for all segments', nevals)
             nevals = np.zeros(nranges, dtype=int) + nevals
 
         if nevals.ndim == 1:
@@ -833,7 +833,7 @@ class Zap(object):
         eigenvalues
         """
         if self.logger is not None:
-            self.logger.info('Reconstructing Sky Residuals')
+            self.logger.info('--- Reconstructing Sky Residuals')
         indices = [x[0] for x in self.pranges[1:]]
         # normstack = self.stack - self.contarray
         Xarr = np.array_split(self.normstack.T, indices, axis=1)
@@ -862,7 +862,7 @@ class Zap(object):
         spectra into the duplicated datacube.
         """
         if self.logger is not None:
-            self.logger.info('Applying correction and reshaping data product')
+            self.logger.info('--- Applying correction and reshaping data product')
         self.cleancube = self.make_cube_from_stack(self.stack - self.recon,
                                                    with_nans=self.run_clean)
 
@@ -886,13 +886,19 @@ class Zap(object):
 
         """
         if self.logger is not None:
-            self.logger.info('Compute number of components')
+            self.logger.debug('-- Compute number of components')
         ncomp = []
         for model in self.models:
             var = model.explained_variance_
-            deriv, mn1, std1 = _compute_deriv(var)
+            deriv, mn1, std1 = _compute_deriv(var, nsigma=2)
             cross = np.append([False], deriv >= (mn1 - std1))
-            ncomp.append(np.where(cross)[0][0])
+            #ncomp.append(np.where(cross)[0][0])
+
+            #also run second derivaties following ZAP v1
+            deriv2, mn2, std2 = _compute_deriv(deriv)
+            cross2 = np.append([False,False], np.fabs(deriv2) <= (mn2 + std2))
+            arrs = np.logical_or(cross, cross2)
+            ncomp.append(np.where(arrs)[0][0])
 
         self.nevals = np.array(ncomp)
 
@@ -915,12 +921,12 @@ class Zap(object):
 
         """
         if self.logger is not None:
-            self.logger.info('Applying Mask for SVD Calculation from %s', mask)
+            self.logger.debug('-- Applying Mask for SVD Calculation from %s', mask)
         self.maskfile = mask
         mask = fits.getdata(mask).astype(bool)
         nmasked = np.count_nonzero(mask)
         if self.logger is not None:
-            self.logger.info('Masking %d pixels (%d%%)', nmasked,
+            self.logger.debug('-- Masking %d pixels (%d%%)', nmasked,
                     nmasked / np.prod(mask.shape) * 100)
         self.cube[:, mask] = np.nan
 
@@ -930,7 +936,7 @@ class Zap(object):
         outhdu = fits.PrimaryHDU(data=self.cleancube, header=outhead)
         write_hdulist_to(outhdu, outcubefits, overwrite=overwrite)
         if self.logger is not None:
-            self.logger.info('Cube file saved to %s', outcubefits)
+            self.logger.info('--- Cube file saved to %s', outcubefits)
 
     def writeskycube(self, skycubefits='SKYCUBE_ZAP.fits', overwrite=False):
         """Write the processed datacube to an individual fits file."""
@@ -939,7 +945,7 @@ class Zap(object):
         outhdu = fits.PrimaryHDU(data=outcube, header=outhead)
         write_hdulist_to(outhdu, skycubefits, overwrite=overwrite)
         if self.logger is not None:
-            self.logger.info('Sky cube file saved to %s', skycubefits)
+            self.logger.info('--- Sky cube file saved to %s', skycubefits)
 
     def writevarcurve(self, varcurvefits='VARCURVE_ZAP.fits', overwrite=False):
         """Write the explained variance curves to an individual fits file."""
@@ -949,7 +955,7 @@ class Zap(object):
         _newheader(self, hdu.header)
         write_hdulist_to(hdu, varcurvefits, overwrite=overwrite)
         if self.logger is not None:
-            self.logger.info('Variance curve file saved to %s', varcurvefits)
+            self.logger.info('--- Variance curve file saved to %s', varcurvefits)
 
     def mergefits(self, outcubefits, overwrite=False):
         """Merge the ZAP cube into the full muse datacube and write."""
@@ -960,7 +966,7 @@ class Zap(object):
             hdu[1].data = self.cleancube
             write_hdulist_to(hdu, outcubefits, overwrite=overwrite)
         if self.logger is not None:
-            self.logger.info('Cube file saved to %s', outcubefits)
+            self.logger.info('--- Cube file saved to %s', outcubefits)
 
     def writePCA(self, pcaoutputfits='ZAP_PCA.fits', overwrite=False):
         """Write critical PCA information to a fits file."""
@@ -989,7 +995,7 @@ class Zap(object):
         # write for later use
         hdu.writeto(pcaoutputfits,overwrite=overwrite)
         if self.logger is not None:
-            self.logger.info('PCA components saved to %s', pcaoutputfits)
+            self.logger.info('--- PCA components saved to %s', pcaoutputfits)
 
     def readPCA(self, pcainputfits):
         """Read int stored PCA information."""
@@ -1016,7 +1022,7 @@ class Zap(object):
         hdu.close()
         
         if self.logger is not None:
-            self.logger.info('PCA components read from %s', pcaoutputfits)
+            self.logger.info('--- PCA components read from %s', os.path.split(pcainputfits)[1])
         
         return models
 
@@ -1126,9 +1132,10 @@ def parallel_map(func, arr, indices, logger=None, **kwargs):
 
 def _compute_deriv(arr, nsigma=5):
     """Compute statistics on the derivatives"""
-    npix = int(0.25 * arr.shape[0])
-    deriv = np.diff(arr[:npix])
-    ind = int(.15 * deriv.size)
+    #npix = int(0.25 * arr.shape[0])
+    #deriv = np.diff(arr[:npix])
+    deriv = np.diff(arr)
+    ind = int(.5 * (arr.size-2))
     mn1 = deriv[ind:].mean()
     std1 = deriv[ind:].std() * nsigma
     return deriv, mn1, std1
@@ -1153,7 +1160,7 @@ def _continuumfilter(stack, cftype, weight=None, cfwidth=300, boost=None, logger
         func = _icfmed_smooth
         weight = None
     if logger is not None:    
-        logger.info('Using cfwidth=%d', cfwidth)
+        logger.debug('-- Using cfwidth=%d', cfwidth)
     c = parallel_map(func, stack, NCPU, axis=1, weight=weight, cfwidth=cfwidth,
                      boost=boost)
     return np.concatenate(c, axis=1)
