@@ -119,7 +119,7 @@ def set_logging(logbase='pyspark', outputdir=os.getcwd(), log_level=3, master_lo
 
     #use random ID generation to split multiple logs 
     logger = logging.getLogger(id_gen())
-    logger.setLevel(logLevels[log_level])
+    logger.setLevel(logging.DEBUG)
 
     #concatenate time stamp onto output_file_base
     time = get_date()

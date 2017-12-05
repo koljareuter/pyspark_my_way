@@ -110,7 +110,7 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
 
 
 def zap_sky_v1(matched_exposures, logger=None, obsband=None, subdir=None, 
-            inputdir=None, suffix='s1', **kwargs):
+            inputdir=None, suffix='s', **kwargs):
 
     #fetch the superdark reference frame for this detector
     svd_file = 'ZAPv1_SVD_{0}_n500004.fits'.format(obsband.upper())
@@ -158,9 +158,8 @@ def zap_sky_v1(matched_exposures, logger=None, obsband=None, subdir=None,
                     ofile[ifu].data = corr_cube
 
 
-
 def subtract_sky(logger=None, subdir=None, obsband=None, 
-                 sky_method='zapv2', **kwargs):
+                 sky_method='zapv2', search_suffix=None, **kwargs):
     """ Driver function for sky subtraction.  Currently only supports
     subtraction using ZAP, but can be expanded to include other approaches.
     """
@@ -170,7 +169,8 @@ def subtract_sky(logger=None, subdir=None, obsband=None,
         return
 
     #get list of frames to process. Assumes location of un-sky-subtracted frames in "sky" directory
-    exposures = get_obs_exposures(subdir=os.path.join(subdir, 'sky'), obsband=obsband, **kwargs) 
+    exposures = get_obs_exposures(subdir=os.path.join(subdir, 'sky'), obsband=obsband, 
+                                  suffix=search_suffix, **kwargs) 
 
     #generate associated list of objects and skies
     obj_sky = match_obj_sky(exposures)

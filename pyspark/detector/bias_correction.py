@@ -122,11 +122,11 @@ def fix_detector_levels(frame_list, subdir=None, inputdir=None, outputdir=None, 
     nframes = len(frame_list)
 
     #iterate over each frame and apply requested corrections
-    for frame in frame_list:
-
+    for frame in frame_list[:3]:
+        fname = os.path.split(frame)[1]
         #make a copy of the input frame to outputdir/subdir
         if logger is not None:
-            logger.info('-- Copying {0} to {1}'.format(frame.split('/')[-1], '_'.join([prefix, frame.split('/')[-1]])))
+            logger.info('- Copying {0} to {1}'.format(frame.split('/')[-1], '_'.join([prefix, fname])))
         outname = duplicate(frame, outputdir=os.path.join(outputdir, subdir), prefix=prefix)
     
 
@@ -146,12 +146,12 @@ def fix_detector_levels(frame_list, subdir=None, inputdir=None, outputdir=None, 
                 orig_header = fdata[det].header
 
                 if channel_correct:
-                    logger.debug('-- Applying channel correction to {0}'.format('_'.join([prefix, frame.split('/')[-1]])))
+                    logger.debug('-- Applying channel correction to detector {0}'.format(det))
                     channel_array = get_channel_correct(orig_data)
                     orig_header['history'] = 'Applied channel correction {0}'.format(get_date()) 
 
                 if picture_correct:
-                    logger.debug('-- Applying picture frame correction to {0}'.format('_'.join([prefix, frame.split('/')[-1]])))
+                    logger.debug('-- Applying picture frame correction to detector {0}'.format(det))
                     picture_array = get_picture_correct(orig_data, detector=det)
                     orig_header['history'] = 'Applied picture frame correction {0}'.format(get_date()) 
 

@@ -293,55 +293,69 @@ def make_spark_calibs(logger=None, subdir=None, make_dark=True, make_arc=True,
     to subdir/calib/* for compatibility with previous codes.
 
     """
-    ecode = 0 
-    while not ecode: 
-        if make_dark:
-            logger.info('-- Processing darks')
-            try:
-                ecode = spark_dark(logger=logger, subdir=subdir, obsband=obsband, **kwargs)
-            except:
-                ecode = 1
-            logger.info('--- Finished darks')
-            comp = 'kmos_dark'
+    ecode = 0
 
-        if make_flat:
-            logger.info('-- Processing flats')
-            try:
-                ecode = spark_flat(logger=logger, subdir=subdir, obsband=obsband, **kwargs)
-            except:
-                ecode = 1
-            logger.info('--- Finished flats')
-            comp = 'kmos_flat'
+    #a bit ugly on the error catching here
+    if make_dark:
+        logger.info('Processing darks')
+        comp = 'kmos_dark'
+        try:
+            ecode = spark_dark(logger=logger, subdir=subdir, obsband=obsband, **kwargs)
+            if ecode:
+                return ecode, comp
+        except:
+            return 1, comp
+        else:
+            logger.info('- Finished darks')
+
+    if make_flat:
+        logger.info('Processing flats')
+        comp = 'kmos_flat'
+        try:
+            ecode = spark_flat(logger=logger, subdir=subdir, obsband=obsband, **kwargs)
+            if ecode:
+                return ecode, comp
+        except:
+            return 1, comp
+        else:
+            logger.info('- Finished flats')
+   
+    if make_arc:
+        logger.info('Processing arcs')
+        comp = 'kmos_wave_cal'
+        try:
+            ecode = spark_arc(logger=logger, subdir=subdir, obsband=obsband, **kwargs)
+            if ecode:
+                return ecode, comp
+        except:
+            return 1, comp
+        else:
+            logger.info('- Finished arcs')
     
-        if make_arc:
-            logger.info('-- Processing arcs')
-            try:
-                ecode = spark_arc(logger=logger, subdir=subdir, obsband=obsband, **kwargs)
-            except:
-                ecode = 1
-            logger.info('--- Finished arcs')
-            comp = 'kmos_wave_cal'
-        
-        if make_illum:
-            logger.info('-- Processing illumination')
-            try:
-                ecode = spark_illum(logger=logger, subdir=subdir, obsband=obsband, **kwargs)
-            except:
-                ecode = 1
-            logger.info('--- Finished illumination')
-            comp = 'kmo_illumination_flat'
+    if make_illum:
+        logger.info('Processing illumination')
+        comp = 'kmo_illumination_flat'
+        try:
+            ecode = spark_illum(logger=logger, subdir=subdir, obsband=obsband, **kwargs)
+            if ecode:
+                return ecode, comp
+        except:
+            return 1, comp
+        else:
+            logger.info('- Finished illumination')
 
-        if reconstruct_arc:
-            logger.info('-- Reconstructing arc')
-            try:
-                ecode = spark_reconstruct_arc(logger=logger, subdir=subdir, obsband=obsband, **kwargs)
-            except:
-                ecode = 1
-            logger.info('--- Finished reconstruction')
-            comp = 'kmo_reconstruct'
+    if reconstruct_arc:
+        logger.info('Reconstructing arc')
+        comp = 'kmo_reconstruct'
+        try:
+            ecode = spark_reconstruct_arc(logger=logger, subdir=subdir, obsband=obsband, **kwargs)
+            if ecode:
+                return ecode, comp
+        except:
+            return 1, comp
+        else:
+            logger.info('- Finished reconstruction')
 
-        break 
-
-    return ecode, comp
+    return ecode, 'none'
 
 

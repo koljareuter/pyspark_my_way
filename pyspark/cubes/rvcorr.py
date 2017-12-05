@@ -150,7 +150,7 @@ def rvcorr_cube(wave_in, array_in, vbary):
 
 
 def velocity_correct(logger=None, subdir=None, obsband=None, rvcorr=True,
-		     **kwargs):
+		     search_suffix=None, **kwargs):
 
     # check that velocity correction is requested
     if not rvcorr:
@@ -159,7 +159,7 @@ def velocity_correct(logger=None, subdir=None, obsband=None, rvcorr=True,
     # get list of frames to process for barycentric correction.  Assumes 
     # working with sky-subtracted frames in science directory
     exposures = get_obs_exposures(subdir=os.path.join(subdir, 'science'), 
-                                  obsband=obsband, suffix='s_i', **kwargs)
+                                  obsband=obsband, suffix=search_suffix, **kwargs)
 
     # iterate over each exposure, apply rv correction
     for exposure, _, _ in exposures:

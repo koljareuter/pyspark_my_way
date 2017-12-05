@@ -3,7 +3,7 @@ import os, sys
 import numpy
 from os.path import join as pjoin
 import shutil
-
+import glob
 
 try:
     from setuptools import setup, Extension, Command
@@ -13,7 +13,6 @@ except ImportError:
     from distutils.core import setup, Extension, Command
     from distutils.command.build_ext import build_ext as _build_ext
     from distutils.command.build import build
-    from distutils.command.sdist import sdist as _sdist
 
 class CleanCommand(Command):
     """Custom distutils command to clean the .so and .pyc files."""
@@ -82,8 +81,7 @@ if __name__ == "__main__":
                            include_dirs=include_dirs)]
     ext_modules = cythonize(cmodules)
 
-    #scripts = ['scripts/'+file for file in os.listdir('scripts/')]  
-    scripts = []
+    scripts = ['scripts/'+file for file in os.listdir('scripts/')]  
 
     cmdclass = {'clean': CleanCommand,
                 'build_ext': build_ext}
@@ -93,9 +91,11 @@ if __name__ == "__main__":
         exec(f.read())
 
     setup(
-        name = "pyspark",
+        name = "pySPARK",
+        url="https://github.com/jtmendel/pyspark",
         version= __version__,
         author="Trevor Mendel",
+        author_email="trevor.mendel@anu.edu.au",
         ext_modules = ext_modules,
         cmdclass = cmdclass,
         scripts = scripts, 
@@ -105,7 +105,10 @@ if __name__ == "__main__":
                   "pyspark.calibration",
                   "pyspark.cubes",
                   "pyspark.sky"],
-        package_data={"pyspark": ["data/superdark_coeffs_mean.fits.fz", 
+        license="LICENSE",
+        description="Reduction routines for KMOS",
+        package_data={"": ["README.md", "LICENSE"],
+                      "pyspark": ["data/superdark_coeffs_mean.fits.fz", 
                                   "data/superbad_60s.fits.fz",
                                   "data/test_ZAPv2_SVD_YJ_n500004.fits",
                                   "data/test_ZAPv2_SVD_H_n500004.fits",
