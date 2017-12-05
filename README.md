@@ -25,7 +25,7 @@ Note that you also need a number of additional bits installed in order to run th
 As well as the following Python modules:
 * [bottleneck](https://pypi.python.org/pypi/Bottleneck) - fast methods for dealing with NaN values in numpy arrays
 * [astropy](http://www.astropy.org/) - Python tools for astronomy
-* [scikit-learn](http://scikit-learn.org/) - Machine learning tools.  Used for PCA in ZAPv2
+* [scikit-learn](http://scikit-learn.org/) - Machine learning tools.  Used for PCA in ZAPv2.
 
 as well as numpy and scipy.
 
@@ -37,7 +37,7 @@ as well as numpy and scipy.
 ```
 reduce_kmos.py -p configuration.cfg
 ```
-Currently this will execute all steps necesary to produce sky-subtracted, illumination correct data cubes.  Combing is not currently implemented, but will be available as an option soon.
+Currently this will execute all steps necesary to produce sky-subtracted, illumination correct data cubes.  Combining is not currently implemented, but will be available as an option soon.
 
 * `pyspark`: core processing routines used by the reduction script.
 
