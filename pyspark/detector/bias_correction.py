@@ -122,7 +122,7 @@ def fix_detector_levels(frame_list, subdir=None, inputdir=None, outputdir=None, 
     nframes = len(frame_list)
 
     #iterate over each frame and apply requested corrections
-    for frame in frame_list[:3]:
+    for frame in frame_list:
 
         #make a copy of the input frame to outputdir/subdir
         if logger is not None:
@@ -160,109 +160,3 @@ def fix_detector_levels(frame_list, subdir=None, inputdir=None, outputdir=None, 
             
             fdata.flush()
     return
-#
-#                
-#
-#
-##if __name__ == '__main__':
-##    
-##    #### OPTIONS ####
-##    parser = argparse.ArgumentParser()
-##    parser.add_argument('dirs', nargs='+', help='list of Object names to process')
-##    parser.add_argument('--verbose', type=int, default=3, help='Set logging level for stdout')
-##    parser.add_argument('--raw_dir', default=os.getcwd(), type=str, help='Absolute path to raw data')
-##    parser.add_argument('--res_dir', default=os.getcwd(), type=str, help='Absolute path to results')
-##    args = parser.parse_args()
-##
-##    #set up directories
-##    dirs = args.dirs
-##    raw_dir = args.raw_dir
-##    res_dir = args.res_dir
-##
-##    #set up logging.
-##    loglevels = {0:logging.CRITICAL, 1:logging.ERROR, 2:logging.WARNING, 3:logging.INFO, 4:logging.DEBUG}
-##
-##    #screen logging level is set by the verbose flag.  Default to file is always DEBUG
-##    log_level = args.verbose
-##    logger = logging.getLogger()
-##    logger.setLevel(logging.DEBUG)
-##    
-##    #file output
-##    if os.path.exists('make_lcorr.log'):
-##        os.remove('make_lcorr.log')
-##    fh = logging.FileHandler('make_lcorr.log')
-##    fh.setLevel(logging.DEBUG)
-##    
-##    ch = logging.StreamHandler()
-##    ch.setLevel(loglevels[log_level])
-##    
-##    formatter = logging.Formatter('%(asctime)s [%(levelname)-8s]: %(message)s', datefmt='%m/%d/%Y %I:%M:%S')
-##    fh.setFormatter(formatter)
-##    ch.setFormatter(formatter)
-##    
-##    logger.addHandler(ch)
-##    logger.addHandler(fh)
-##
-##
-##    #### END OPTIONS ####
-##
-##    ###########################################################
-##    # FETCH FILES TO CORRECT
-##    #
-##    #fetch list of valid observation files and store a bit of information
-##
-##    obs_files, obs_night = [], []
-##    for ddir in dirs:
-##        cmd = 'dfits {0}/{1}/KMOS*OBS*.fits | fitsort ins.grat1.id dpr.type | tail -n +2'.format(raw_dir, ddir)
-##        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, bufsize=1, shell=True)
-##        for line in iter(p.stdout.readline, b''):
-##            temp = string.strip(line).split(None)
-##            if temp[2] in ['OBJECT,SKY','DARK']:
-##                obs_files.append(temp[0])
-##                obs_night.append(ddir)
-##                logger.debug('Found {0}/{1}'.format(ddir,temp[0].split('/')[-1])) 
-##
-##
-##    #pixel lookup for superdark correction
-##    idx, idy = np.meshgrid(range(2048), range(2048))
-##    ref_select = ((idx < 4) | (idx > 2043) | (idy > 2043)) & (idy > 3)
-##    
-##    #load in the superdark file to apply correction 
-##    sdfile = fits.open('{0}/data/superdark_coeffs_mean.fits.fz'.format(os.path.dirname(kutils.__file__)))
-##
-##    #go through the science frames one by one
-##    for ii, sci_file in enumerate(obs_files[:1]):
-##        this_file = sci_file.split('/')[-1]
-##        logger.info('Estimating correction for {0}'.format(this_file))
-##        out_file = 'ndc_{0}'.format(this_file)
-##       
-##        if not os.path.exists('{0}/{1}'.format(res_dir, obs_night[ii])):
-##            os.makedirs('{0}/{1}'.format(res_dir, obs_night[ii])) 
-##
-##        file = fits.open(sci_file)
-##        hdulist = fits.HDUList()
-##        phdu = fits.PrimaryHDU(header=file[0].header)
-##        hdulist.append(phdu)
-##        for detector in range(1,4):
-##            logger.debug('- processing detector {0}'.format(detector))
-##            obj_data = np.asarray(file[detector].data, dtype=np.float32)
-##
-##            #reference pixel values for superdark correction
-##            edge_vals = np.median(obj_data[ref_select & (obj_data != 0.) & np.isfinite(obj_data)])
-##            sdark_corr = sdfile[detector].data * edge_vals
-##
-##            ref_out = _ref_corr(obj_data, det=detector) - sdark_corr
-##
-##            ##run second correction on image pixels to account for drift
-##            #det_corr = _det_corr(ref_out, np.asarray(smfile[detector].data, dtype=bool)) 
-##            
-##            data_image = fits.ImageHDU(data=np.asarray(ref_out, dtype=np.float32), header=file[detector].header)
-##            hdulist.append(data_image)
-##       
-##            #logger.debug('-- median reference value: {0}'.format(edge_vals)) 
-##
-##        hdulist.writeto('{0}/{1}/{2}'.format(res_dir, obs_night[ii], out_file), overwrite=True, output_verify='ignore')
-##        file.close()
-##    
-##    sdfile.close()
-##    smfile.close()
