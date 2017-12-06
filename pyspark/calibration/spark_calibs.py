@@ -13,7 +13,7 @@ __all__ = ["make_spark_calibs", "spark_dark", "spark_flat", "spark_arc",
            "spark_illum"]
 
 #static calibration directory based on SPARK_HOME environment variable
-static_cal = os.environ['KMOS_STATIC']
+static_cal = os.environ['KMOS_CALIB']
 
 
 def spark_dark(logger=None, subdir=None, obsband=None, **kwargs):
