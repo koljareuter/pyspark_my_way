@@ -124,8 +124,7 @@ def get_sof_list(filetype=None, subdir=None, inputdir=None, obsband=None,
         filepath = 'KMOS'
     else:
         filepath = '{0}_KMOS'.format(prefix)
-    dfits_string = 'dfits '+filepath+'*{0}*.fits | fitsort tpl.id dpr.type ins.grat1.id det.seq1.dit ocs.rot.naangle date-obs | tail -n +2'
-   
+    dfits_string = 'dfits '+filepath+'*{0}*.fits | fitsort tpl.id dpr.type ins.grat1.id det.seq1.dit ocs.rot.naangle date-obs obs.start obs.targ.name | tail -n +2'
 
     sof_out = []
    
@@ -194,8 +193,8 @@ def get_sof_list(filetype=None, subdir=None, inputdir=None, obsband=None,
             p = subprocess.Popen(dfits_string.format('CAL'), stdout=subprocess.PIPE, bufsize=1, shell=True)
             for line in iter(p.stdout.readline, b''):
                 sline = line.decode('utf-8').strip().split(None)
-                if sline[1] in ['KMOS_spec_cal_stdstar','KMOS_spec_cal_stdstarscipatt'] and sline[3] == obs_band.upper():
-                    sof_out.append((os.path.join(fpath, sline[0]), sline[2]))
+                if sline[1] in ['KMOS_spec_cal_stdstar','KMOS_spec_cal_stdstarscipatt'] and sline[3] == obsband.upper():
+                    sof_out.append((os.path.join(fpath, sline[0]), sline[4], sline[7], sline[8], float(sline[5])))
             p.wait()
 
     # --- Science exposures --- 

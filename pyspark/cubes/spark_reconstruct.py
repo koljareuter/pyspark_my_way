@@ -11,7 +11,7 @@ from ..utils.setuputils import id_gen
 __all__ = ["reconstruct"]
 
 #static calibration directory based on SPARK_HOME environment variable
-static_cal = os.environ['KMOS_STATIC']
+static_cal = os.environ['KMOS_CALIB']
 
 
 def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',

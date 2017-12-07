@@ -112,13 +112,16 @@ def get_cal_rotator(cal_file):
     return pro_naangles
 
 
-def match_obs_rotator(head, cal_rot, get_second=False):
+def match_obs_rotator(head, cal_rot, get_second=False, input_rot=None):
     
     """find closest match in a list of calibration rotation angles
     returns appropriate rotator index and closest match.
     """
 
-    obs_rot = head['HIERARCH ESO OCS ROT NAANGLE']
+    if input_rot is not None:
+        obs_rot = input_rot
+    else:
+        obs_rot = head['HIERARCH ESO OCS ROT NAANGLE']
 
     #find closest from calibration rotator angles
     offset = np.abs(((cal_rot-obs_rot + 540.)%360-180))

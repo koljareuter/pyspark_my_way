@@ -3,6 +3,7 @@ import numpy as np
 from astropy.io import fits
 import os
 
+from .telluric_standard import spark_standard
 
 from ..utils.fileutils import (get_sof_list, clean_move)
 from ..utils.obsutils import (get_cal_rotator, run_spark)
@@ -285,8 +286,8 @@ def spark_reconstruct_arc(logger=None, subdir=None, obsband=None, **kwargs):
 
 
 def make_spark_calibs(logger=None, subdir=None, make_dark=True, make_arc=True,
-                      make_flat=True, make_illum=True, reconstruct_arc=True, 
-		      obsband=None, **kwargs):
+                      make_flat=True, make_illum=True, reconstruct_arc=True,
+                      make_standard=True, obsband=None, **kwargs):
   
     """ Wrapper to run the requested calibration steps using SPARK.  By default
     runs all of the dark, flat, arc, and illumination steps, and copies the results
@@ -355,6 +356,19 @@ def make_spark_calibs(logger=None, subdir=None, make_dark=True, make_arc=True,
             return 1, comp
         else:
             logger.info('- Finished reconstruction')
+
+    if make_standard:
+        logger.info('Processing standard stars')
+        comp = 'kmo_std_star'
+        try:
+            ecode = spark_standard(logger=logger, subdir=subdir, obsband=obsband, **kwargs)
+            if ecode:
+                return ecode, comp
+        except:
+            return 1, comp
+        else:
+            logger.info('- Finished standard stars')
+
 
     return ecode, 'none'
 
