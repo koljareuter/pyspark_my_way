@@ -126,7 +126,7 @@ def fix_detector_levels(frame_list, subdir=None, inputdir=None, outputdir=None, 
         fname = os.path.split(frame)[1]
         #make a copy of the input frame to outputdir/subdir
         if logger is not None:
-            logger.info('- Copying {0} to {1}'.format(frame.split('/')[-1], '_'.join([prefix, fname])))
+            logger.debug('- Copying {0} to {1}'.format(frame.split('/')[-1], '_'.join([prefix, fname])))
         outname = duplicate(frame, outputdir=os.path.join(outputdir, subdir), prefix=prefix)
     
 

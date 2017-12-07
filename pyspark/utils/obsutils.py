@@ -159,6 +159,9 @@ def run_spark(routine, args='', sof=None, logger=None):
     """
 
     cmd = 'esorex {0} {1} {2}'.format(routine, args, sof)
+    if logger is not None: 
+        logger.debug('- Executing command: {0}'.format(cmd))
+    
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, bufsize=1, shell=True)
     for line in iter(p.stdout.readline, b''):
         if logger is not None:

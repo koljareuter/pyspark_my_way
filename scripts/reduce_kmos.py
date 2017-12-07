@@ -108,7 +108,7 @@ for band in bands:
         # -- reconstruct -----------------------
         master_logger.info('- Running reconstruction')
         ecode = reconstruct(logger=dir_logger, subdir=folder, obsband=band, 
-                          **run_params['cubes'])
+                            **run_params['cubes'])
         if ecode:
             break_check(comp, master_logger)
             continue
@@ -118,40 +118,35 @@ for band in bands:
 
         # -- sky subtraction -------------------
         master_logger.info('- Running sky subtraction')
-        try:
-            subtract_sky(logger=dir_logger, subdir=folder, obsband=band, **run_params['cubes'])
-        except:
-            break_check('sky subtraction', master_logger)
+        ecode = subtract_sky(logger=dir_logger, subdir=folder, obsband=band, 
+                             **run_params['cubes'])
+        if ecode:
+            break_check('sky_subtraction', master_logger)
             continue
-        else:
-            master_logger.info('-- Finished sky subtraction')
-            master_logger.info(' ')
+        master_logger.info('-- Finished sky subtraction')
+        master_logger.info(' ')
 
 
         # -- illumination correction -----------
         master_logger.info('- Applying illumination correction')
-        try:
-            illuminate(logger=dir_logger, subdir=folder, obsband=band, 
-                       search_suffix='s', **run_params['cubes'])
-        except:
+        ecode = illuminate(logger=dir_logger, subdir=folder, obsband=band, 
+                           search_suffix='s', **run_params['cubes'])
+        if ecode:
             break_check('illumination correction', master_logger)
             continue
-        else:
-            master_logger.info('-- Finished illumination correction')
-            master_logger.info(' ')
+        master_logger.info('-- Finished illumination correction')
+        master_logger.info(' ')
 
 
         # -- barycentric velocity correction -----
-        master_logger.info('- Applying velocity correction')
-        try:
-            velocity_correct(logger=dir_logger, subdir=folder, obsband=band, 
-                             search_suffix='s_i', **run_params['cubes'])
-        except:
+        master_logger.info('- Applying heliocentric correction')
+        ecode = velocity_correct(logger=dir_logger, subdir=folder, obsband=band, 
+                                 search_suffix='s_i', **run_params['cubes'])
+        if ecode:
             break_check('velocity correction', master_logger)
             continue
-        else:
-            master_logger.info('-- Finished velocity correction')
-            master_logger.info(' ')
+        master_logger.info('-- Finished heliocentric correction')
+        master_logger.info(' ')
  
-
+        
         master_logger.info('- Finished reducing {0} '.format(folder))

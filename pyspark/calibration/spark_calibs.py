@@ -81,6 +81,7 @@ def spark_flat(logger=None, subdir=None, obsband=None, **kwargs):
         #include additional files required for SPARK
         badpixel_file = os.path.join(caldir, 'badpixel_dark.fits')
         ofile.write('{0} BADPIXEL_DARK\n'.format(badpixel_file))
+        logger.debug('-- Added {0} BADPIXEL_DARK'.format(badpixel_file))
 
     #control args
     routine_args = '-cmethod=median'
@@ -133,13 +134,21 @@ def spark_arc(logger=None, subdir=None, obsband=None, **kwargs):
 
         #include additional files required for SPARK
         ofile.write('{0} BADPIXEL_FLAT\n'.format(os.path.join(caldir, 'badpixel_flat_{0}{0}{0}.fits'.format(obsband.upper()))))
+        logger.debug('-- Added {0} BADPIXEL_FLAT'.format(os.path.join(caldir, 'badpixel_flat_{0}{0}{0}.fits'.format(obsband.upper()))))
         ofile.write('{0} FLAT_EDGE\n'.format(os.path.join(caldir, 'flat_edge_{0}{0}{0}.fits'.format(obsband.upper()))))
+        logger.debug('-- Added {0} FLAT_EDGE'.format(os.path.join(caldir, 'flat_edge_{0}{0}{0}.fits'.format(obsband.upper()))))
         ofile.write('{0} MASTER_FLAT\n'.format(os.path.join(caldir, 'master_flat_{0}{0}{0}.fits'.format(obsband.upper()))))
+        logger.debug('-- Added {0} MASTER_FLAT'.format(os.path.join(caldir, 'master_flat_{0}{0}{0}.fits'.format(obsband.upper()))))
         ofile.write('{0} XCAL\n'.format(os.path.join(caldir, 'xcal_{0}{0}{0}.fits'.format(obsband.upper()))))
+        logger.debug('-- Added {0} XCAL'.format(os.path.join(caldir, 'xcal_{0}{0}{0}.fits'.format(obsband.upper()))))
         ofile.write('{0} YCAL\n'.format(os.path.join(caldir, 'ycal_{0}{0}{0}.fits'.format(obsband.upper()))))
+        logger.debug('-- Added {0} YCAL'.format(os.path.join(caldir, 'ycal_{0}{0}{0}.fits'.format(obsband.upper()))))
         ofile.write('{0} ARC_LIST\n'.format(os.path.join(static_cal, 'kmos_ar_ne_list_{0}.fits'.format(obsband.lower()))))
+        logger.debug('-- Added {0} ARC_LIST'.format(os.path.join(static_cal, 'kmos_ar_ne_list_{0}.fits'.format(obsband.lower()))))
         ofile.write('{0} WAVE_BAND\n'.format(os.path.join(static_cal, 'kmos_wave_band.fits')))
+        logger.debug('-- Added {0} WAVE_BAND'.format(os.path.join(static_cal, 'kmos_wave_band.fits')))
         ofile.write('{0} REF_LINES\n'.format(os.path.join(static_cal, 'kmos_wave_ref_table.fits')))
+        logger.debug('-- Added {0} REF_LINES'.format(os.path.join(static_cal, 'kmos_wave_ref_table.fits')))
 
     #execute spark script
     logger.debug('- Executing kmos_wave_cal')
@@ -192,13 +201,13 @@ def spark_illum(logger=None, subdir=None, obsband=None, **kwargs):
 
             #include additional files required for SPARK
             ofile.write('{0} XCAL\n'.format(os.path.join(caldir, 'xcal_{0}{0}{0}.fits'.format(obsband.upper()))))
-            logger.debug('--- Added {0}'.format(os.path.join(caldir, 'xcal_{0}{0}{0}.fits'.format(obsband.upper()))))
+            logger.debug('--- Added {0} XCAL'.format(os.path.join(caldir, 'xcal_{0}{0}{0}.fits'.format(obsband.upper()))))
             ofile.write('{0} YCAL\n'.format(os.path.join(caldir, 'ycal_{0}{0}{0}.fits'.format(obsband.upper()))))
-            logger.debug('--- Added {0}'.format(os.path.join(caldir, 'ycal_{0}{0}{0}.fits'.format(obsband.upper()))))
+            logger.debug('--- Added {0} YCAL'.format(os.path.join(caldir, 'ycal_{0}{0}{0}.fits'.format(obsband.upper()))))
             ofile.write('{0} LCAL\n'.format(os.path.join(caldir, 'lcal_{0}{0}{0}.fits'.format(obsband.upper()))))
-            logger.debug('--- Added {0}'.format(os.path.join(caldir, 'lcal_{0}{0}{0}.fits'.format(obsband.upper()))))
+            logger.debug('--- Added {0} LCAL'.format(os.path.join(caldir, 'lcal_{0}{0}{0}.fits'.format(obsband.upper()))))
             ofile.write('{0} WAVE_BAND\n'.format(os.path.join(static_cal, 'kmos_wave_band.fits')))
-            logger.debug('--- Added {0}'.format(os.path.join(static_cal, 'kmos_wave_band.fits')))
+            logger.debug('--- Added {0} WAVE_BAND'.format(os.path.join(static_cal, 'kmos_wave_band.fits')))
 
 
         #control args
@@ -255,13 +264,13 @@ def spark_reconstruct_arc(logger=None, subdir=None, obsband=None, **kwargs):
 
         #include additional files required for SPARK
         ofile.write('{0} XCAL\n'.format(os.path.join(caldir, 'xcal_{0}{0}{0}.fits'.format(obsband.upper()))))
-        logger.debug('--- Added {0}'.format(os.path.join(caldir, 'xcal_{0}{0}{0}.fits'.format(obsband.upper()))))
+        logger.debug('--- Added {0} XCAL'.format(os.path.join(caldir, 'xcal_{0}{0}{0}.fits'.format(obsband.upper()))))
         ofile.write('{0} YCAL\n'.format(os.path.join(caldir, 'ycal_{0}{0}{0}.fits'.format(obsband.upper()))))
-        logger.debug('--- Added {0}'.format(os.path.join(caldir, 'ycal_{0}{0}{0}.fits'.format(obsband.upper()))))
+        logger.debug('--- Added {0} YCAL'.format(os.path.join(caldir, 'ycal_{0}{0}{0}.fits'.format(obsband.upper()))))
         ofile.write('{0} LCAL\n'.format(os.path.join(caldir, 'lcal_{0}{0}{0}.fits'.format(obsband.upper()))))
-        logger.debug('--- Added {0}'.format(os.path.join(caldir, 'lcal_{0}{0}{0}.fits'.format(obsband.upper()))))
+        logger.debug('--- Added {0} LCAL'.format(os.path.join(caldir, 'lcal_{0}{0}{0}.fits'.format(obsband.upper()))))
         ofile.write('{0} WAVE_BAND\n'.format(os.path.join(static_cal, 'kmos_wave_band.fits')))
-        logger.debug('--- Added {0}'.format(os.path.join(static_cal, 'kmos_wave_band.fits')))
+        logger.debug('--- Added {0} WAVE_BAND'.format(os.path.join(static_cal, 'kmos_wave_band.fits')))
 
 
     #execute spark script

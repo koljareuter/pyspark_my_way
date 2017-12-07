@@ -61,7 +61,7 @@ class CleanCommand(Command):
 try:
     from Cython.Build import cythonize
 except ImportError:
-    raise ImportError("pySPARK requires cython to install")
+    raise ImportError("pyspark requires cython to install")
 
 
 class build_ext(_build_ext):
@@ -91,7 +91,7 @@ if __name__ == "__main__":
         exec(f.read())
 
     setup(
-        name = "pySPARK",
+        name = "pyspark",
         url="https://github.com/jtmendel/pyspark",
         version= __version__,
         author="Trevor Mendel",

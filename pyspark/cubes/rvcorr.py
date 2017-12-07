@@ -152,14 +152,23 @@ def rvcorr_cube(wave_in, array_in, vbary):
 def velocity_correct(logger=None, subdir=None, obsband=None, rvcorr=True,
 		     search_suffix=None, **kwargs):
 
+
     # check that velocity correction is requested
     if not rvcorr:
-        return
+        return 0
+
+    if logger is not None:
+        logger.debug('- Running heliocentric corrections')
 
     # get list of frames to process for barycentric correction.  Assumes 
     # working with sky-subtracted frames in science directory
     exposures = get_obs_exposures(subdir=os.path.join(subdir, 'science'), 
                                   obsband=obsband, suffix=search_suffix, **kwargs)
+
+    if not len(exposures):
+        if logger is not None:
+            logger.warning('-- No exposures found for heliocentric correction')
+        return 1
 
     # iterate over each exposure, apply rv correction
     for exposure, _, _ in exposures:
@@ -181,4 +190,8 @@ def velocity_correct(logger=None, subdir=None, obsband=None, rvcorr=True,
                     corr_cube = rvcorr_cube(wave, cube, vbary)
                     ofile[ifu].data = corr_cube
 
-
+            #fluxh
+            ofile[0].header['HISTORY'] = "Applied heliocentric correction {0:.2f} km/s".format(float(vbary))
+            ofile[0].header['HIERARCH ESO K3D VHELIO'] = vbary 
+    
+    return 0

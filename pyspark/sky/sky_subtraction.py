@@ -163,14 +163,21 @@ def subtract_sky(logger=None, subdir=None, obsband=None,
     """ Driver function for sky subtraction.  Currently only supports
     subtraction using ZAP, but can be expanded to include other approaches.
     """
-
     #check that sky subtraction is handled by this routine
     if sky_method not in sky_methods:
-        return
+        return 0
+
+    if logger is not None:
+        logger.debug('- Running sky subtraction')
 
     #get list of frames to process. Assumes location of un-sky-subtracted frames in "sky" directory
     exposures = get_obs_exposures(subdir=os.path.join(subdir, 'sky'), obsband=obsband, 
                                   suffix=search_suffix, **kwargs) 
+
+    if not len(exposures):
+        if logger is not None:
+            logger.warning('-- No reconstructed frames found, skipping sky subtraction')
+        return 1
 
     #generate associated list of objects and skies
     obj_sky = match_obj_sky(exposures)
@@ -181,5 +188,4 @@ def subtract_sky(logger=None, subdir=None, obsband=None,
     elif sky_method == 'zapv1':
         zap_sky_v1(obj_sky, logger=logger, obsband=obsband, subdir=subdir, **kwargs)    
 
-    pass
-
+    return 0
