@@ -10,8 +10,11 @@ __all__ = ["illuminate"]
 
 
 def illuminate(logger=None, subdir=None, obsband=None, 
-               search_suffix=None, **kwargs):
+               search_suffix=None, illum_corr=True, **kwargs):
 
+    if not illum_corr:
+        return 0
+    
     if logger is not None:
         logger.debug('- Running illumination corrections')
 
