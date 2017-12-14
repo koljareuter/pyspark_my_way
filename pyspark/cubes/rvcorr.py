@@ -103,7 +103,7 @@ def get_rvcorr(header):
     skycoord = SkyCoord(ra, dec, frame='icrs', unit=(u.deg, u.deg), obstime=time)
 
     vbary = calc_vbary(time, skycoord, location)
-    return vbary
+    return vbary.value()
 
 
 def rvcorr_cube(wave_in, array_in, vbary):
