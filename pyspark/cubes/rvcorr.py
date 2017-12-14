@@ -103,7 +103,7 @@ def get_rvcorr(header):
     skycoord = SkyCoord(ra, dec, frame='icrs', unit=(u.deg, u.deg), obstime=time)
 
     vbary = calc_vbary(time, skycoord, location)
-    return vbary.value
+    return vbary
 
 
 def rvcorr_cube(wave_in, array_in, vbary):
@@ -191,7 +191,7 @@ def velocity_correct(logger=None, subdir=None, obsband=None, rvcorr=True,
                     ofile[ifu].data = corr_cube
 
             #fluxh
-            ofile[0].header['HISTORY'] = "Applied heliocentric correction {0:.2f} km/s".format(float(vbary))
-            ofile[0].header['HIERARCH ESO K3D VHELIO'] = vbary 
+            ofile[0].header['HISTORY'] = "Applied heliocentric correction {0:.2f} km/s".format(float(vbary.value))
+            ofile[0].header['HIERARCH ESO K3D VHELIO'] = vbary.value 
     
     return 0
