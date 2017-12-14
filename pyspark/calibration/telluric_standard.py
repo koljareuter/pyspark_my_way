@@ -81,8 +81,8 @@ def spark_standard(logger=None, subdir=None, obsband=None, **kwargs):
                     ofile.write('{0} STD\n'.format(frame))
                     logger.debug('-- Added {0} STD'.format(frame))
 
-                ofile.write('{0}/illum_corr_{1}{1}{1}_{2}.fits ILLUM_CORR\n'.format(caldir, obsband.upper(), matched_rot))
-                logger.debug('-- Added {0}/illum_corr_{1}{1}{1}_{2}.fits ILLUM_CORR'.format(caldir, obsband.upper(), matched_rot))
+                ofile.write('{0}/illum_corr_{1}{1}{1}_{2:03}.fits ILLUM_CORR\n'.format(caldir, obsband.upper(), matched_rot))
+                logger.debug('-- Added {0}/illum_corr_{1}{1}{1}_{2:03}.fits ILLUM_CORR'.format(caldir, obsband.upper(), matched_rot))
                 ofile.write('{0}/master_flat_{1}{1}{1}.fits MASTER_FLAT\n'.format(caldir, obsband.upper()))
                 logger.debug('-- Added {0}/master_flat_{1}{1}{1}.fits MASTER_FLAT'.format(caldir, obsband.upper()))
                 ofile.write('{0}/xcal_{1}{1}{1}.fits XCAL\n'.format(caldir, obsband.upper()))

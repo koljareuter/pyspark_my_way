@@ -83,12 +83,16 @@ for band in bands:
                 inputdir=rawdir, obsband=band)
 
         #apply detector fix(es)
-        try:
-            fix_detector_levels([frame for frame, type in frames], subdir=folder, 
-                    logger=dir_logger, **run_params['detector'])
-        except:
-            break_check('Det. correction', master_logger)
-            continue
+        if run_params['detector']['channel_correct'] or run_params['detector']['picture_correct']:
+            try:
+                fix_detector_levels([frame for frame, type in frames], subdir=folder, 
+                        logger=dir_logger, **run_params['detector'])
+            except:
+                break_check('Det. correction', master_logger)
+                continue
+            else:
+                master_logger.info('-- Finished detector corrections')
+                master_logger.info(' ')
         else:
             master_logger.info('-- Finished detector corrections')
             master_logger.info(' ')
