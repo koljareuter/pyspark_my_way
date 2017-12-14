@@ -237,8 +237,7 @@ def spark_illum(logger=None, subdir=None, obsband=None, **kwargs):
 
 def spark_reconstruct_arc(logger=None, subdir=None, obsband=None, **kwargs):
 
-    """ Generate (internal) illumination images for each of the angles
-    present in the master flat.
+    """ Reconstruct a single arc frame to use for resolution measurement.
     """
     
     #path for the output calibration directory
@@ -257,7 +256,8 @@ def spark_reconstruct_arc(logger=None, subdir=None, obsband=None, **kwargs):
     logger.debug('-- Writing illumination frames to temporary file {0}'.format(outfile))
 
     with open(outfile, 'wt') as ofile:
-        for frame, ftype in frames:
+        #only reconstruct a single arc frame
+        for frame, ftype in frames[:1]:
             if ftype == 'WAVE,LAMP':
                 ofile.write('{0} ARC_ON\n'.format(frame))
                 logger.debug('--- Added {0} ARC_ON'.format(frame))
