@@ -61,7 +61,7 @@ for band in bands:
                 inputdir=rawdir, obsband=band)
 
         if not len(iframes):
-            master_logger.info("No science exposures for this night+band, moving on")
+            master_logger.info("No {0}-band science exposures for {1}, moving on".format(band, folder))
             continue
 
         master_logger.info('Reducing {0} '.format(folder))
