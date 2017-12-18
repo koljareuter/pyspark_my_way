@@ -172,20 +172,41 @@ def get_sof_list(filetype=None, subdir=None, inputdir=None, obsband=None,
         exp_dark = []
         standard_dark = []
 
+        #first pass: identify darks and group by exposure time
+        store_darks = {}
         with cd(fpath):
             p = subprocess.Popen(dfits_string.format('DARK'), stdout=subprocess.PIPE, bufsize=1, shell=True)
             for line in iter(p.stdout.readline, b''):
                 sline = line.decode('utf-8').strip().split(None)
-                if darkexp is not None and float(sline[4]) == darkexp:
-                    exp_dark.append((os.path.join(fpath, sline[0]), None))
-                elif float(sline[4]) == 60.:
-                    standard_dark.append((os.path.join(fpath, sline[0]), None))
+                store_darks.setdefault(int(float(sline[4])), []).append((os.path.join(fpath, sline[0]),None))
             p.wait()
-            
-            if len(exp_dark):
-                sof_out = exp_dark
-            else:
-                sof_out = standard_dark
+
+        dark_times = store_darks.keys()
+        if darkexp is not None and darkexp in dark_times:
+            print("found darkexp!")
+            sof_out = store_darks[darkexp]
+        elif 60 in dark_times:
+            print("found 60s dark")
+            sof_out = store_darks[60]
+        else:
+            #neither the provided time or 60s is in the dark folder
+            if len(dark_times) == 1: #use the only time that's there
+                print("only found one set of darks at {0}".format(dark_times[0]))
+                sof_out = store_darks[dark_times[0]]
+            else: #otherwise use the shortest time there
+                print("using the shortest avaialble dark {0}".format(min(dark_times)))
+                sof_out = store_darks[min(dark_times)]
+
+        #if darkexp is not None and float(sline[4]) == darkexp:
+                #    exp_dark.append((os.path.join(fpath, sline[0]), None))
+                #elif float(sline[4]) == 60.:
+                #    standard_dark.append((os.path.join(fpath, sline[0]), None))
+        print(sof_out)            
+
+            #if len(exp_dark):
+            #    sof_out = exp_dark
+            #else:
+            #    sof_out = standard_dark
 
     # --- Standard star exposures --- 
     elif filetype.lower() == 'standard':
