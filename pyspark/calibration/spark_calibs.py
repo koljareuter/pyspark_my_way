@@ -23,7 +23,7 @@ def spark_dark(logger=None, subdir=None, obsband=None, **kwargs):
     """
     
     #get list of dark frames for processing
-    frames = get_sof_list(filetype='dark', subdir=subdir, **kwargs)
+    frames = get_sof_list(filetype='dark', subdir=subdir, logger=logger, **kwargs)
 
     #write temporary .sof file to feed to
     outfile = '{0}.sof'.format(id_gen())

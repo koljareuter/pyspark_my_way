@@ -95,7 +95,7 @@ def fetch_resource_path(resource):
 
 
 def get_sof_list(filetype=None, subdir=None, inputdir=None, obsband=None, 
-                 darkexp=None, prefix=None, rotangle=None, **kwargs):
+                 darkexp=None, prefix=None, rotangle=None, logger=None, **kwargs):
     """ Return a list of frames matching the requested filetype and band
     in the given directory.
 
@@ -183,18 +183,22 @@ def get_sof_list(filetype=None, subdir=None, inputdir=None, obsband=None,
 
         dark_times = list(store_darks.keys())
         if darkexp is not None and darkexp in dark_times:
-            logger.debug("- Found darks with {0}s".format(darkexp))
+            if logger is not None:
+                logger.debug("- Found darks with {0}s".format(darkexp))
             sof_out = store_darks[darkexp]
         elif 60 in dark_times:
-            logger.debug("- {0}s darks not found, falling back to 60s".format(darkexp))
+            if logger is not None:
+                logger.debug("- {0}s darks not found, falling back to 60s".format(darkexp))
             sof_out = store_darks[60]
         else:
             #neither the provided time or 60s is in the dark folder
             if len(dark_times) == 1: #use the only time that's there
-                logger.debug("- Only one set of darks found, using {0}s".format(dark_times[0]))
+                if logger is not None:
+                    logger.debug("- Only one set of darks found, using {0}s".format(dark_times[0]))
                 sof_out = store_darks[dark_times[0]]
             else: #otherwise use the shortest time there
-                logger.debug("- Multiple (non-specified) darks found, using {0}s".format(min(dark_times)))
+                if logger is not None:
+                    logger.debug("- Multiple (non-specified) darks found, using {0}s".format(min(dark_times)))
                 sof_out = store_darks[min(dark_times)]
 
 
