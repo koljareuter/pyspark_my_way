@@ -54,15 +54,19 @@ from sklearn.decomposition.base import _BasePCA
 
 from ._zap_version import __version2__ as __version__
 
+
+import bottleneck as bn
+
 __all__ = ['process', 'SVDoutput', 'nancleanfits', 'contsubfits', 'Zap',
            'wmedian']
 
 # Limits of the segments in Angstroms. Use single region for the optical
 # but multiple for the IR (preliminary testing shows that this does much
 # better than a single broad band).
-SKYSEG = [0, 10140, 10670, 11250, 11960, 12450, 12890, 14000, 14720, 
-          15650, 16000, 16356, 17253, 18400, 19570, 20950, 22000, 
-          23500, 24600, 26000]
+#SKYSEG = [0, 10140, 10670, 11250, 11960, 12450, 12890, 14000, 14720, 
+#          15650, 16000, 16356, 17253, 18400, 19570, 20950, 22000, 
+#          23500, 24600, 26000]
+SKYSEG = [0, 26000]
 CONTSEG = [0, 10140, 10670, 11250, 11960, 12450, 12890, 14000, 14720, 
            15650, 16000, 16356, 17253, 18400, 19570, 20950, 22000, 
            23500, 24600, 26000]
@@ -501,6 +505,9 @@ class Zap(object):
         self.recon = None
         self.cleancube = None
 
+        #for masking, require an external array
+        self.flag_extSVD = False
+
     @timeit
     def _prepare(self, clean=True, zlevel='median', cftype='weight',
                  cfwidth=300, extzlevel=None, mask=None, boost=50,
@@ -578,6 +585,7 @@ class Zap(object):
             self.models = extSVD.models
         else:
             self.models = self.readPCA(extSVD)
+            self.flag_extSVD = True
 
         self.components = [m.components_.copy() for m in self.models]
 
@@ -757,8 +765,11 @@ class Zap(object):
         self.variancearray = var = np.zeros((nseg, self.stack.shape[1]))
         for i in range(nseg):
             pmin, pmax = self.pranges[i]
-            var[i, :] = np.maximum(np.var(self.normstack[pmin:pmax, :], axis=0), 1.0e-10)
+            #var[i, :] = np.maximum(np.var(self.normstack[pmin:pmax, :], axis=0), 1.0e-10)
+            #var[i, :] = np.maximum(bn.nanvar(self.normstack[pmin:pmax, :], axis=0), 1.0e=10)
+            var[i, :] = np.maximum((1.4826*mad_std(self.normstack[pmin:pmax, :], axis=0))**2, 1.0e-10)
             self.normstack[pmin:pmax, :] /= var[i, :]
+        
 
     @timeit
     def _msvd(self):
@@ -786,6 +797,7 @@ class Zap(object):
                 ncomp = None
 
             self.models.append(self.pca_class(n_components=ncomp).fit(x))
+
 
     def chooseevals(self, nevals=[]):
         """Choose the number of eigenspectra/evals to use for reconstruction.
@@ -835,12 +847,26 @@ class Zap(object):
         if self.logger is not None:
             self.logger.info('--- Reconstructing Sky Residuals')
         indices = [x[0] for x in self.pranges[1:]]
-        # normstack = self.stack - self.contarray
-        Xarr = np.array_split(self.normstack.T, indices, axis=1)
-        Xnew = [model.transform(x)
-                for model, x in zip(self.models, Xarr)]
-        Xinv = [model.inverse_transform(x)
-                for model, x in zip(self.models, Xnew)]
+
+        #setup masked array for inversion
+        mnormstack = bn.nanmedian(self.normstack, axis=1)       
+        sigma_mask = ((self.normstack - mnormstack[:,np.newaxis]) > 6.)
+        normstack_ma = np.ma.masked_array(self.normstack, mask=sigma_mask)
+
+        #use custom transform and inverse transform methods for masked array
+        if self.flag_extSVD:
+            Xarr = np.array_split(normstack_ma.T, indices, axis=1)
+            Xnew = [model.transform_ma(x)
+                    for model, x in zip(self.models, Xarr)]
+            Xinv = [model.inverse_transform_ma(x)
+                    for model, x in zip(self.models, Xnew)]
+        else:
+            Xarr = np.array_split(self.normstack.T, indices, axis=1)
+            Xnew = [model.transform(x)
+                    for model, x in zip(self.models, Xarr)]
+            Xinv = [model.inverse_transform(x)
+                    for model, x in zip(self.models, Xnew)]
+        
         self.recon = np.concatenate([x.T * self.variancearray[i, :]
                                      for i, x in enumerate(Xinv)])
         # self.recon = np.concatenate([x.T for x in Xinv])
@@ -889,13 +915,17 @@ class Zap(object):
             self.logger.debug('-- Compute number of components')
         ncomp = []
         for model in self.models:
+            ##original ZAPv2
+            #var = model.explained_variance_
+            #deriv, mn1, std1 = _compute_deriv(var, nsigma=2)
+            #cross = np.append([False], deriv >= (mn1 - std1))
+            #ncomp.append(np.where(cross)[0][0])
+    
+            #modified to mimic ZAPv1
             var = model.explained_variance_
             deriv, mn1, std1 = _compute_deriv(var, nsigma=2)
             cross = np.append([False], deriv >= (mn1 - std1))
-            #ncomp.append(np.where(cross)[0][0])
-
-            #also run second derivaties following ZAP v1
-            deriv2, mn2, std2 = _compute_deriv(deriv)
+            deriv2, mn2, std2 = _compute_deriv(deriv, nsigma=2)
             cross2 = np.append([False,False], np.fabs(deriv2) <= (mn2 + std2))
             arrs = np.logical_or(cross, cross2)
             ncomp.append(np.where(arrs)[0][0])
@@ -1132,12 +1162,18 @@ def parallel_map(func, arr, indices, logger=None, **kwargs):
 
 def _compute_deriv(arr, nsigma=5):
     """Compute statistics on the derivatives"""
-    #npix = int(0.25 * arr.shape[0])
-    #deriv = np.diff(arr[:npix])
+    #ZAPv1 implementation
     deriv = np.diff(arr)
     ind = int(.5 * (arr.size-2))
     mn1 = deriv[ind:].mean()
     std1 = deriv[ind:].std() * nsigma
+    
+    ##original ZAPv2 implementation
+    #npix = int(0.25 * arr.shape[0])
+    #deriv = np.diff(arr[:npix])
+    #ind = int(.15 * deriv.size)
+    #mn1 = deriv[ind:].mean()
+    #std1 = deriv[ind:].std() * nsigma
     return deriv, mn1, std1
 
 
@@ -1349,3 +1385,35 @@ class PCAobj(_BasePCA):
 
     def fit(self):
         pass
+
+    #include transform methods which work on masked arrays to deal with catastrophic
+    #outliers in the spectra
+    def transform_ma(self, X):
+        """Apply dimensionality reduction to X.
+        X is projected on the first principal components 
+        previously extracted from a training set.
+
+        Modified from the standard sklearn routine to use
+        masked array routines
+        """
+        if self.mean_ is not None:
+            X = X - self.mean_
+        X_transformed = np.array(np.ma.dot(X, self.components_.T))
+        if self.whiten:
+            X_transformed /= np.sqrt(self.explained_variance_)
+        return X_transformed
+
+    def inverse_transform_ma(self, X):
+        """Transform data back to its original space.
+        In other words, return an input X_original whose transform would be X.
+
+        Modified from the standard sklearn routine to use
+        masked array routines
+        """
+        if self.whiten:
+            return np.array(np.ma.dot(X, np.sqrt(self.explained_variance_[:, np.newaxis]) *
+                            self.components_)) + self.mean_
+        else:
+            return np.array(np.ma.dot(X, self.components_)) + self.mean_
+
+
