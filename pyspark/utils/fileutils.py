@@ -90,7 +90,6 @@ def fetch_resource_path(resource):
     the full install path as a string.
     """
     d = os.path.dirname(sys.modules['pyspark'].__file__)
-    #data = fits.open(os.path.join(d, resource))
     return os.path.join(d, resource)
 
 
@@ -124,7 +123,7 @@ def get_sof_list(filetype=None, subdir=None, inputdir=None, obsband=None,
         filepath = 'KMOS'
     else:
         filepath = '{0}_KMOS'.format(prefix)
-    dfits_string = 'dfits '+filepath+'*{0}*.fits | fitsort tpl.id dpr.type ins.grat1.id det.seq1.dit ocs.rot.naangle date-obs obs.start obs.targ.name | tail -n +2'
+    dfits_string = 'dfits '+filepath+'*{0}*.fits | fitsort tpl.id dpr.type ins.filt1.id det.seq1.dit ocs.rot.naangle date-obs obs.start obs.targ.name | tail -n +2'
 
     sof_out = []
    
@@ -134,7 +133,7 @@ def get_sof_list(filetype=None, subdir=None, inputdir=None, obsband=None,
             p = subprocess.Popen(dfits_string.format('CAL'), stdout=subprocess.PIPE, bufsize=1, shell=True)
             for line in iter(p.stdout.readline, b''):
                 sline = line.decode('utf-8').strip().split(None)
-                if sline[1] == 'KMOS_spec_cal_calunitflat' and sline[3] == obsband.upper():
+                if sline[1] == 'KMOS_spec_cal_calunitflat' and sline[3].upper() in [obsband.upper(), 'BLOCK']:
                     if rotangle is None:
                         sof_out.append((os.path.join(fpath, sline[0]), sline[2]))
                     else:
@@ -153,8 +152,7 @@ def get_sof_list(filetype=None, subdir=None, inputdir=None, obsband=None,
             p = subprocess.Popen(dfits_string.format('CAL'), stdout=subprocess.PIPE, bufsize=1, shell=True)
             for line in iter(p.stdout.readline, b''):
                 sline = line.decode('utf-8').strip().split(None)
-                if sline[1] == 'KMOS_spec_cal_wave' and sline[3] == obsband.upper():
-                    #sof_out.append((sline[0], sline[2]))
+                if sline[1] == 'KMOS_spec_cal_wave' and sline[3].upper() in [obsband.upper(), 'BLOCK']:
                     if rotangle is None:
                         sof_out.append((os.path.join(fpath, sline[0]), sline[2]))
                     else:
