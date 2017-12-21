@@ -9,6 +9,7 @@ from astropy.coordinates import SkyCoord
 
 try:
     from astroquery.simbad import Simbad
+    from astroquery.irsa import Irsa
 except ImportError:
     pass
 
@@ -22,10 +23,10 @@ __all__ = ["spark_standard", "get_star_info"]
 # static calibration directory based on SPARK_HOME environment variable
 static_cal = os.environ['KMOS_CALIB']
 
-# band-specific VO table names in case of Simbad query
+# band-specific VO table names in case of online query
 VO_flux = {'YJ':'flux(J)', 'H':'flux(H)', 'K':'flux(K)'}
 VO_table_flux = {'YJ':'FLUX_J', 'H':'FLUX_H', 'K':'FLUX_K'}
-
+ir_table_flux = {'YJ':'j_m', 'H':'h_m', 'K':'k_m'}
 
 def spark_standard(logger=None, subdir=None, obsband=None, **kwargs):
 
@@ -146,8 +147,14 @@ def get_star_info(header=None, query=True):
     ra, dec = sex_to_deg(alpha, delta)
 
     # header star information (in case of query failure)
-    hdr_star_mag = float(header['ESO OCS STDSTAR MAG']) 
-    hdr_star_type = header['ESO OCS STDSTAR TYPE']
+    hdr_star_mag = header['ESO OCS STDSTAR MAG'] 
+    # catch rare case of multiple mags in the header
+    if len(hdr_star_mag.split(',')) > 1:
+        hdr_star_mag = float(hdr_star_mag.split(',')[0])
+    else:
+        hdr_star_mag = float(hdr_star_mag)
+
+    hdr_star_type = str(header['ESO OCS STDSTAR TYPE'])
     hdr_star_name = header['ESO OBS TARG NAME']
 
     # allow just returning header information as written
@@ -160,14 +167,23 @@ def get_star_info(header=None, query=True):
 
     # execute the primary query and pull out stellar type and magnitude information
     query = Simbad()
+    ir_query = Irsa()
 
     query.add_votable_fields(VO_flux[band], 'sptype')
-    prim_res = query.query_region(skycoord, radius=1.*u.arcsecond)
+    prim_res = query.query_region(skycoord, radius=3.*u.arcsecond)
+
+    # query 2MASS catalog directly for magnitudes
+    tmass_res = ir_query.query_region(skycoord, catalog='fp_psc', radius=3.0*u.arcsecond)
 
     if prim_res is not None:
 
-        star_mag = prim_res[VO_table_flux[band]][0]
+        simbad_mag = prim_res[VO_table_flux[band]][0]
+        star_mag = tmass_res[ir_table_flux[band]][0]
         star_type = prim_res['SP_TYPE'][0].decode('utf-8')
+
+        #check for multiple classifications.  In this case just adopt the header type (otherwise really messy).
+        if len(star_type.split('/')) > 1:
+            star_type = hdr_star_type
 
         #check spectral type, if it doesn't include a luminosity class then assume MS
         if len(star_type) < 3:
@@ -175,11 +191,11 @@ def get_star_info(header=None, query=True):
 
         # resolve the hipparcos name if one exists, otherwise use MAIN_ID
         name_res = query.query_objectids(prim_res['MAIN_ID'][0].decode('utf-8'))
-        hip_name = [qid.strip() for qid in name_res['ID'] if qid[:3] == 'HIP'][0]
+        hip_name = [qid.strip() for qid in name_res['ID'] if qid[:3] == 'HIP']
         if not len(hip_name):
             star_name = '_'.join(prim_res['MAIN_ID'][0].decode('utf-8').strip().split(None))
         else:
-            star_name = '_'.join(hip_name.split(None))
+            star_name = '_'.join(hip_name[0].split(None))
         return star_name, star_type, star_mag
     else:
         return hdr_star_name, hdr_star_type, hdr_star_mag
