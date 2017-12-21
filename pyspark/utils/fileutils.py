@@ -135,16 +135,31 @@ def get_sof_list(filetype=None, subdir=None, inputdir=None, obsband=None,
                 sline = line.decode('utf-8').strip().split(None)
                 if sline[1] == 'KMOS_spec_cal_calunitflat' and sline[3].upper() in [obsband.upper(), 'BLOCK']:
                     if rotangle is None:
-                        sof_out.append((os.path.join(fpath, sline[0]), sline[2]))
+                        if sline[2] == 'FLAT,OFF':
+                            block_init.append((os.path.join(fpath, sline[0]), sline[2], float(sline[4])))
+                        else:
+                            sof_out.append((os.path.join(fpath, sline[0]), sline[2]))
+                            flat_exp.append(float(sline[4]))
                     else:
                         if sline[2] == 'FLAT,OFF':
-                            sof_out.append((os.path.join(fpath, sline[0]), sline[2]))
+                            block_init.append((os.path.join(fpath, sline[0]), sline[2], float(sline[4])))
                         else:
                             rangle = float(sline[5])
                             if rangle < 0: rangle += 360.
                             if float(rotangle) == rangle:
                                 sof_out.append((os.path.join(fpath, sline[0]), sline[2]))
+                                flat_exp.append(float(sline[4]))
             p.wait()
+        
+        #pass back over the flats to match appropriate block frames
+        flat_exp = np.unique(flat_exp)
+        if len(flat_exp) > 1:
+            return 0
+
+        for dframe, dtype, dexp in block_init:
+            if dexp == flat_exp:
+                sof_out.append((dframe, dtype,))
+
 
     # --- Arc line frames --- 
     elif filetype.lower() == 'arc':
