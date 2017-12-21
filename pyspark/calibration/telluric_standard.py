@@ -147,7 +147,7 @@ def get_star_info(header=None, query=True):
     ra, dec = sex_to_deg(alpha, delta)
 
     # header star information (in case of query failure)
-    hdr_star_mag = header['ESO OCS STDSTAR MAG'] 
+    hdr_star_mag = str(header['ESO OCS STDSTAR MAG']) 
     # catch rare case of multiple mags in the header
     if len(hdr_star_mag.split(',')) > 1:
         hdr_star_mag = float(hdr_star_mag.split(',')[0])
