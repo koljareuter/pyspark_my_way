@@ -6,7 +6,7 @@ import subprocess
 
 __all__ = ["nanMAD", "hl_diff", "hsm", "read_cube", "match_obs_rotator",
            "get_cal_rotator", "get_obs_extensions", "run_spark", "find_lines",
-           "reconstruct_wave"]
+           "reconstruct_wave", "split_sex", "sex_to_deg"]
 
 def nanMAD(a, axis=None):
     """Compute the Median Absolute Deviation accounting
@@ -236,4 +236,21 @@ def reconstruct_wave(header):
         cdelt = header['CD3_3']
 
     return (np.arange(zsize)+1 - crpix)*cdelt + crval
+
+def split_sex(coord):
+    ss, llmm = np.modf(coord/100.)
+    mm, ll = np.modf(llmm/100.)
+    return (ll, mm*100., ss*100.)
+
+def sex_to_deg(alpha, delta):
+    """Convert between hms/dms as in the KMOS headers to decimal degrees
+    """
+    hh_ra, mm_ra, ss_ra = split_sex(alpha)
+    dd_dec, mm_dec, ss_dec = split_sex(delta)
+
+    ra_out = (hh_ra + mm_ra/60. + ss_ra/3600.)*15.
+    dec_out = dd_dec + mm_dec/60. + ss_dec/3600.
+
+    return ra_out, dec_out
+
 

@@ -206,8 +206,13 @@ def get_sof_list(filetype=None, subdir=None, inputdir=None, obsband=None,
             p = subprocess.Popen(dfits_string.format('CAL'), stdout=subprocess.PIPE, bufsize=1, shell=True)
             for line in iter(p.stdout.readline, b''):
                 sline = line.decode('utf-8').strip().split(None)
-                if sline[1] in ['KMOS_spec_cal_stdstar','KMOS_spec_cal_stdstarscipatt'] and sline[3] == obsband.upper():
-                    sof_out.append((os.path.join(fpath, sline[0]), sline[4], sline[7], sline[8], float(sline[5])))
+                if obsband is not None:
+                    if sline[1] in ['KMOS_spec_cal_stdstar','KMOS_spec_cal_stdstarscipatt'] and sline[3] == obsband.upper():
+                        sof_out.append((os.path.join(fpath, sline[0]), sline[4], sline[7], sline[8], float(sline[5])))
+                else:
+                    if sline[1] in ['KMOS_spec_cal_stdstar','KMOS_spec_cal_stdstarscipatt']:
+                        sof_out.append((os.path.join(fpath, sline[0]), sline[4], sline[7], sline[8], float(sline[5])))
+
             p.wait()
 
     # --- Science exposures --- 

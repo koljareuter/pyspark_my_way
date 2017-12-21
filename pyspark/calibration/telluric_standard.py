@@ -1,22 +1,30 @@
 from __future__ import print_function
-import numpy as np
-from astropy.io import fits
-from collections import Counter
 import os
+import numpy as np
+import astropy.units as u
+
+from astropy.io import fits
+from astropy.time import Time
+from astropy.coordinates import SkyCoord
+
+try:
+    from astroquery.simbad import Simbad
+except ImportError:
+    pass
 
 from ..utils.fileutils import (get_sof_list, clean_move)
-from ..utils.obsutils import (get_cal_rotator, run_spark, match_obs_rotator)
+from ..utils.obsutils import (get_cal_rotator, run_spark, match_obs_rotator, sex_to_deg)
 from ..utils.setuputils import id_gen
 
 
-__all__ = ["spark_standard"]
+__all__ = ["spark_standard", "get_star_info"]
 
-#static calibration directory based on SPARK_HOME environment variable
+# static calibration directory based on SPARK_HOME environment variable
 static_cal = os.environ['KMOS_CALIB']
 
-# I've currently left this as a separate set of routines as its not yet
-# clear if there's additional processing we'd like to do (e.g. update
-# header information with a simbad query or extract our own spectra.
+# band-specific VO table names in case of Simbad query
+VO_flux = {'YJ':'flux(J)', 'H':'flux(H)', 'K':'flux(K)'}
+VO_table_flux = {'YJ':'FLUX_J', 'H':'FLUX_H', 'K':'FLUX_K'}
 
 
 def spark_standard(logger=None, subdir=None, obsband=None, **kwargs):
@@ -122,3 +130,59 @@ def spark_standard(logger=None, subdir=None, obsband=None, **kwargs):
             clean_move(outfile, os.path.join(kwargs['outputdir'], subdir, 'sof', '{0}_stdstar_{1}.sof'\
                     .format(subdir, base_out)))
     return 0
+
+
+def get_star_info(header=None, query=True):
+    """ This routine returns the star name, appropriate in-band
+    magnitude, and spectral + luminosity class.  Its default
+    behaviour is to execute a position-based Simbad query, but 
+    in case of failure it instead just returns the header information
+    as written.
+    """
+    # parse header information
+    date_obs = header['DATE-OBS']
+    band = header['ESO INS FILT1 ID'].upper()  
+  
+    alpha = header['ESO OCS TARG ALPHA']
+    delta = header['ESO OCS TARG DELTA']
+    ra, dec = sex_to_deg(alpha, delta)
+
+    # header star information (in case of query failure)
+    hdr_star_mag = float(header['ESO OCS STDSTAR MAG']) 
+    hdr_star_type = header['ESO OCS STDSTAR TYPE']
+    hdr_star_name = header['ESO OBS TARG NAME']
+
+    # allow just returning header information as written
+    if not query:
+        return hdr_star_name, hdr_star_type, hdr_star_mag
+
+    # build time and coordinate objects 
+    time = Time(date_obs, format='isot', scale='utc')
+    skycoord = SkyCoord(ra, dec, frame='icrs', unit=(u.deg, u.deg), obstime=time)
+
+    # execute the primary query and pull out stellar type and magnitude information
+    query = Simbad()
+
+    query.add_votable_fields(VO_flux[band], 'sptype')
+    prim_res = query.query_region(skycoord, radius=1.*u.arcsecond)
+
+    if prim_res is not None:
+
+        star_mag = prim_res[VO_table_flux[band]][0]
+        star_type = prim_res['SP_TYPE'][0].decode('utf-8')
+
+        #check spectral type, if it doesn't include a luminosity class then assume MS
+        if len(star_type) < 3:
+            star_type += 'V'
+
+        # resolve the hipparcos name if one exists, otherwise use MAIN_ID
+        name_res = query.query_objectids(prim_res['MAIN_ID'][0].decode('utf-8'))
+        hip_name = [qid.strip() for qid in name_res['ID'] if qid[:3] == 'HIP'][0]
+        if not len(hip_name):
+            star_name = '_'.join(prim_res['MAIN_ID'][0].decode('utf-8').strip().split(None))
+        else:
+            star_name = '_'.join(hip_name.split(None))
+        return star_name, star_type, star_mag
+    else:
+        return hdr_star_name, hdr_star_type, hdr_star_mag
+
