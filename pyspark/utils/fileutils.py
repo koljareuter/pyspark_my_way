@@ -129,6 +129,8 @@ def get_sof_list(filetype=None, subdir=None, inputdir=None, obsband=None,
    
     # --- Flat field frames --- 
     if filetype.lower() == 'flat':
+        block_init = []
+        flat_exp = []
         with cd(fpath):
             p = subprocess.Popen(dfits_string.format('CAL'), stdout=subprocess.PIPE, bufsize=1, shell=True)
             for line in iter(p.stdout.readline, b''):
