@@ -68,13 +68,11 @@ def spark_standard(logger=None, subdir=None, obsband=None, **kwargs):
 
         cnt_exp = 1
         for ttime in times:
-
-            if len(list(np.unique(dits))) != len(times): #catch duplicate observations with same dit
-                base_out = '{0}_{1:.1f}s_{2}_{3}'.format(star, float(dit_dict[times[0]]), 
-                                                              obsband.lower(), cnt_exp) 
-                cnt_exp += 1
-            else:
-                base_out = '{0}_{1:.1f}s_{2}'.format(star, float(dit_dict[times[0]]), obsband.lower())
+            # include additional index to deal with multiple observations of same star in
+            # the same band with the same exposure time
+            base_out = '{0}_{1:.1f}s_{2}_{3}'.format(star, float(dit_dict[times[0]]), 
+                                                          obsband.lower(), cnt_exp) 
+            cnt_exp += 1
       
             # get matched rotation for the illumination correctoin
             _, matched_rot, this_star_rot = match_obs_rotator('dummy', pro_naangles, 
