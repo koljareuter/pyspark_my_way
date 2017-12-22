@@ -153,41 +153,57 @@ def get_sof_list(filetype=None, subdir=None, inputdir=None, obsband=None,
                                 flat_exp.append(float(sline[4]))
             p.wait()
         
-        #pass back over the flats to match appropriate block frames
+        # pass back over the flats to match appropriate block frames
         flat_exp = np.unique(flat_exp)
         if len(flat_exp) > 1:
-            return 0
+            return 1
 
         for dframe, dtype, dexp in block_init:
             if dexp == flat_exp:
                 sof_out.append((dframe, dtype,))
 
-
     # --- Arc line frames --- 
     elif filetype.lower() == 'arc':
+        block_init = []
+        arc_exp = []
         with cd(fpath):
             p = subprocess.Popen(dfits_string.format('CAL'), stdout=subprocess.PIPE, bufsize=1, shell=True)
             for line in iter(p.stdout.readline, b''):
                 sline = line.decode('utf-8').strip().split(None)
                 if sline[1] == 'KMOS_spec_cal_wave' and sline[3].upper() in [obsband.upper(), 'BLOCK']:
                     if rotangle is None:
-                        sof_out.append((os.path.join(fpath, sline[0]), sline[2]))
+                        if sline[2] == 'WAVE,OFF':
+                            block_init.append((os.path.join(fpath, sline[0]), sline[2], float(sline[4])))
+                        else:
+                            sof_out.append((os.path.join(fpath, sline[0]), sline[2]))
+                            arc_exp.append(float(sline[4]))
                     else:
                         if sline[2] != 'WAVE,OFF':
+                            block_init.append((os.path.join(fpath, sline[0]), sline[2], float(sline[4])))
+                        else:
                             rangle = float(sline[5])
                             if rangle < 0: rangle += 360.
                             if float(rotangle) == rangle:
                                 sof_out.append((os.path.join(fpath, sline[0]), sline[2]))
-    
+                                arc_exp.append(float(sline[4]))
             p.wait()
+
+        # pass back over the arcs to match appropriate block frames
+        arc_exp = np.unique(arc_exp)
+        if len(arc_exp) > 1:
+            return 1
+
+        for dframe, dtype, dexp in block_init:
+            if dexp == arc_exp:
+                sof_out.append((dframe, dtype,))
 
     # --- Darks frames --- 
     elif filetype.lower() == 'dark':
-        #track darks with two different exposure times
+        # track darks with two different exposure times
         exp_dark = []
         standard_dark = []
 
-        #first pass: identify darks and group by exposure time
+        # first pass: identify darks and group by exposure time
         store_darks = {}
         with cd(fpath):
             p = subprocess.Popen(dfits_string.format('DARK'), stdout=subprocess.PIPE, bufsize=1, shell=True)
@@ -206,16 +222,15 @@ def get_sof_list(filetype=None, subdir=None, inputdir=None, obsband=None,
                 logger.debug("- {0}s darks not found, falling back to 60s".format(darkexp))
             sof_out = store_darks[60]
         else:
-            #neither the provided time or 60s is in the dark folder
+            # neither the provided time or 60s is in the dark folder
             if len(dark_times) == 1: #use the only time that's there
                 if logger is not None:
                     logger.debug("- Only one set of darks found, using {0}s".format(dark_times[0]))
                 sof_out = store_darks[dark_times[0]]
-            else: #otherwise use the shortest time there
+            else: # otherwise use the shortest time there
                 if logger is not None:
                     logger.debug("- Multiple (non-specified) darks found, using {0}s".format(min(dark_times)))
                 sof_out = store_darks[min(dark_times)]
-
 
     # --- Standard star exposures --- 
     elif filetype.lower() == 'standard':
