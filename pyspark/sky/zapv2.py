@@ -767,7 +767,7 @@ class Zap(object):
             pmin, pmax = self.pranges[i]
             #var[i, :] = np.maximum(np.var(self.normstack[pmin:pmax, :], axis=0), 1.0e-10)
             #var[i, :] = np.maximum(bn.nanvar(self.normstack[pmin:pmax, :], axis=0), 1.0e=10)
-            var[i, :] = np.maximum((1.4826*mad_std(self.normstack[pmin:pmax, :], axis=0))**2, 1.0e-10)
+            var[i, :] = np.maximum((mad_std(self.normstack[pmin:pmax, :], axis=0))**2, 1.0e-10)
             self.normstack[pmin:pmax, :] /= var[i, :]
         
 
