@@ -178,7 +178,7 @@ def get_sof_list(filetype=None, subdir=None, inputdir=None, obsband=None,
                             sof_out.append((os.path.join(fpath, sline[0]), sline[2]))
                             arc_exp.append(float(sline[4]))
                     else:
-                        if sline[2] != 'WAVE,OFF':
+                        if sline[2] == 'WAVE,OFF':
                             block_init.append((os.path.join(fpath, sline[0]), sline[2], float(sline[4])))
                         else:
                             rangle = float(sline[5])
