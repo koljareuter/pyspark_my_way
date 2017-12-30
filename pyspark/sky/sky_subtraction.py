@@ -64,7 +64,7 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
             inputdir=None, suffix='s', **kwargs):
 
     #fetch the superdark reference frame for this detector
-    svd_file = 'test_ZAPv2_SVD_{0}_n500004.fits'.format(obsband.upper())
+    svd_file = 'ZAPv2_SVD_{0}_n500004.fits'.format(obsband.upper())
     fpath = fetch_resource_path('data/{0}'.format(svd_file))
     if logger is not None:
         logger.debug("- Subtracting sky using {0}".format(svd_file))
