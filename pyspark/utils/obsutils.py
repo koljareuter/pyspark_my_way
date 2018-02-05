@@ -17,6 +17,7 @@ def nanMAD(a, axis=None):
         mu = np.expand_dims(mu, axis=axis)    
     return bn.nanmedian(np.fabs(a-mu), axis=axis)
 
+
 def hl_diff(a,b):
     """Hodges-Lehmann estimate of the difference between
     two input arrays.
@@ -24,18 +25,20 @@ def hl_diff(a,b):
     pairs = a[:,None]-b[None,:]
     return bn.nanmedian(pairs.flatten())
 
+
 def hsm(a, min_samp=5):
     """Estimate the mode of an input array using the
     the half-sample algorithm.
     """
-    
+    a = np.atleast_1d(a)
+
     srt = np.argsort(a.ravel())
     cut_array = a.ravel()[srt]
     nsamp_full = cut_array.size
 
     power = 1
     while nsamp_full/float((2**(power+1))) > min_samp:
-        interval = nsamp_full/(2**power)
+        interval = nsamp_full//(2**power)
         
         #find minimum interval
         cut_low, cut_high = cut_array[:interval], cut_array[interval:]
@@ -237,10 +240,12 @@ def reconstruct_wave(header):
 
     return (np.arange(zsize)+1 - crpix)*cdelt + crval
 
+
 def split_sex(coord):
     ss, llmm = np.modf(coord/100.)
     mm, ll = np.modf(llmm/100.)
     return (ll, mm*100., ss*100.)
+
 
 def sex_to_deg(alpha, delta):
     """Convert between hms/dms as in the KMOS headers to decimal degrees

@@ -4,7 +4,7 @@ from astropy.io import fits
 import os
 import glob
 
-from ..utils.fileutils import (get_sof_list, clean_move)
+from ..utils.fileutils import (get_sof_list, clean_move, patch_header)
 from ..utils.obsutils import (get_cal_rotator, run_spark)
 from ..utils.setuputils import id_gen
 
@@ -83,14 +83,15 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
         return 1
 
     #move output to their final locations
-    for frame, date in frames:
+    hdr_keys = ['DATE', 'DATE-OBS', 'OBJECT', 'RA', 'DEC', 'MJD-OBS', 'UTC', 'LST']
+    for frame, _ in frames:
         frame_out = 'sci_reconstructed_{0}'.format(frame.split('/')[-1])
-        clean_move(frame_out, os.path.join(kwargs['outputdir'], subdir, 'sky'))
 
-        #force correction to date-obs keyword to fix time problem
-        tfile = fits.open(os.path.join(kwargs['outputdir'], subdir, 'sky', frame_out), mode='update')
-        tfile[0].header['DATE-OBS'] = date
-        tfile.flush()
+        #patch the header keywords to match original file
+        patch_header(frame_out, hdr_keys, frame)
+
+        #move the patched frame to the sky directory
+        clean_move(frame_out, os.path.join(kwargs['outputdir'], subdir, 'sky'))
 
     #move the .sof file for logging
     clean_move(outfile, os.path.join(kwargs['outputdir'], subdir, 'sof', '{0}_cubes_{1}.sof'\

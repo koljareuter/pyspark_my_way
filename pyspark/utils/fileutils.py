@@ -7,7 +7,7 @@ import subprocess
 import time
 
 __all__ = ["clean_move", "get_obs_extensions", "fetch_resource_path", 
-           "get_sof_list", "duplicate", "get_obs_exposures"]
+           "get_sof_list", "duplicate", "get_obs_exposures", "patch_header"]
 
 dateobsfmt = "%Y-%m-%dT%H:%M:%S.%f"
 
@@ -301,6 +301,21 @@ def get_obs_exposures(inputdir=None, subdir=None, obsband=None, prefix=None,
         p.wait()
 
     return exposures
+
+
+def patch_header(frame, header_keys, reference_frame, ext=0):
+    """ Given a reference frame and list of header keywords, copy header 
+    values into frame. 
+    """
+    tfile = fits.open(frame, mode='update')
+    ref_header = fits.getheader(reference_frame, ext=ext)
+    for hkey in header_keys:
+        hval = ref_header[hkey]
+        hcom = ref_header.comments[hkey]
+
+        tfile[ext].header[hkey] = (hval, hcom)
+    tfile.flush()
+    return 0
 
 
 def verify_structure(outputdir=None, subdir=None):
