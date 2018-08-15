@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-__version2__ = '2.1.dev'
+__version2__ = '2.2.dev'
 __version1__ = '1.1.dev'
 #__date__ = '2017/09/08'
 __description__ = ('ZAP (the Zurich Atmosphere Purge) is a high precision sky'

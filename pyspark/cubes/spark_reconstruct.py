@@ -15,7 +15,7 @@ static_cal = os.environ['KMOS_CALIB']
 
 
 def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
-                combine=False, reconstruct_cubes=True, **kwargs):
+                combine=False, reconstruct_cubes=True, use_oh=True, **kwargs):
 
     """ Reconstruct science cubes using spark
     """
@@ -46,7 +46,8 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
         ofile.write('{0} LCAL\n'.format(os.path.join(caldir, 'lcal_{0}{0}{0}.fits'.format(obsband.upper()))))
         ofile.write('{0} MASTER_FLAT\n'.format(os.path.join(caldir, 'master_flat_{0}{0}{0}.fits'.format(obsband.upper()))))
         ofile.write('{0} WAVE_BAND\n'.format(os.path.join(static_cal, 'kmos_wave_band.fits')))
-        ofile.write('{0} OH_SPEC\n'.format(os.path.join(static_cal, 'kmos_oh_spec_{0}.fits'.format(obsband.lower()))))
+        if use_oh:
+            ofile.write('{0} OH_SPEC\n'.format(os.path.join(static_cal, 'kmos_oh_spec_{0}.fits'.format(obsband.lower()))))
         
         if logger is not None:
             logger.debug('-- Added {0} XCAL'.format(os.path.join(caldir, 'xcal_{0}{0}{0}.fits'.format(obsband.upper()))))
@@ -54,7 +55,8 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
             logger.debug('-- Added {0} LCAL'.format(os.path.join(caldir, 'lcal_{0}{0}{0}.fits'.format(obsband.upper()))))
             logger.debug('-- Added {0} MASTER_FLAT'.format(os.path.join(caldir, 'master_flat_{0}{0}{0}.fits'.format(obsband.upper()))))
             logger.debug('-- Added {0} WAVE_BAND'.format(os.path.join(static_cal, 'kmos_wave_band.fits')))
-            logger.debug('-- Added {0} OH_SPEC'.format(os.path.join(static_cal, 'kmos_oh_spec_{0}.fits'.format(obsband.lower()))))
+            if use_oh:
+                logger.debug('-- Added {0} OH_SPEC'.format(os.path.join(static_cal, 'kmos_oh_spec_{0}.fits'.format(obsband.lower()))))
 
 
     #control args

@@ -31,6 +31,7 @@ def hsm(a, min_samp=5):
     the half-sample algorithm.
     """
     a = np.atleast_1d(a)
+    a = a[np.isfinite(a)]
 
     srt = np.argsort(a.ravel())
     cut_array = a.ravel()[srt]
@@ -42,7 +43,6 @@ def hsm(a, min_samp=5):
         
         #find minimum interval
         cut_low, cut_high = cut_array[:interval], cut_array[interval:]
-        #print cut_low, cut_high, nsamp_full
         if cut_low.size > cut_high.size:
             interval_size = cut_high.size
             cut_low = cut_low[:interval_size]
@@ -73,18 +73,16 @@ def read_cube(data_file, ext=None, fixzero=False):
     
     #pull header information for the wavelength array
     hdr = file[ext].header
+    
+    file.close()
     try:
-        crval = hdr['CRVAL3']
-        cdelt = hdr['CDELT3']
-        crpix = hdr['CRPIX3']
+        #pull cube sizes
         xsize = hdr['NAXIS1']
         ysize = hdr['NAXIS2']
         zsize = hdr['NAXIS3']
 
-        file.close()
-
         #wavelength array in microns
-        wl_array = (np.arange(zsize, dtype=np.float64)+1 - crpix)*cdelt + crval
+        wl_array = reconstruct_wave(hdr)
 
         #set zero values to nan for proper handling
         findzero = np.zeros(data.shape, dtype=bool)
@@ -238,7 +236,7 @@ def reconstruct_wave(header):
     except:
         cdelt = header['CD3_3']
 
-    return (np.arange(zsize)+1 - crpix)*cdelt + crval
+    return (np.arange(zsize, dtype=np.float)+1 - crpix)*cdelt + crval
 
 
 def split_sex(coord):

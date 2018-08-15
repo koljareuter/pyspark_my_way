@@ -55,22 +55,18 @@ from sklearn.decomposition.base import _BasePCA
 from ._zap_version import __version2__ as __version__
 
 
-import bottleneck as bn
-
 __all__ = ['process', 'SVDoutput', 'nancleanfits', 'contsubfits', 'Zap',
            'wmedian']
 
 # Limits of the segments in Angstroms. Use single region for the optical
-# but multiple for the IR (preliminary testing shows that this does much
-# better than a single broad band).
-#SKYSEG = [0, 10140, 10670, 11250, 11960, 12450, 12890, 14000, 14720, 
-#          15650, 16000, 16356, 17253, 18400, 19570, 20950, 22000, 
-#          23500, 24600, 26000]
-SKYSEG = [0, 26000]
-CONTSEG = [0, 10140, 10670, 11250, 11960, 12450, 12890, 14000, 14720, 
-           15650, 16000, 16356, 17253, 18400, 19570, 20950, 22000, 
-           23500, 24600, 26000]
-CONTFLAG = [0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0]
+##SKYSEG = [0, 10140, 10670, 11250, 11960, 12450, 12890, 14000, 14720, 
+##          15650, 16000, 16356, 17253, 18400, 19570, 20950, 22000, 
+##          23500, 24600, 26000]
+##SKYSEG = [0, 26000]
+##CONTSEG = [0, 10140, 10670, 11250, 11960, 12450, 12890, 14000, 14720, 
+##           15650, 16000, 16356, 17253, 18400, 19570, 20950, 22000, 
+##           23500, 24600, 26000]
+##CONTFLAG = [0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0]
 
 
 # segment, see below for the old values.
@@ -110,7 +106,7 @@ def process(cubefits, cube=None, hdr=None, outcubefits='DATACUBE_ZAP.fits', clea
             nevals=[], extSVD=None, skycubefits=None, mask=None,
             interactive=False, ncpu=None, pca_class=None, n_components=None,
             overwrite=False, varcurvefits=None, instrument='MUSE', boost=50,
-            reject_factor=0.0, contmask=None, logger=None):
+            reject_factor=0.0, contmask=None, logger=None, segment_sky=False):
     """ Performs the entire ZAP sky subtraction algorithm.
 
     This is the main ZAP function. It works on an input FITS file and
@@ -174,7 +170,7 @@ def process(cubefits, cube=None, hdr=None, outcubefits='DATACUBE_ZAP.fits', clea
 
     """
     if logger is not None:
-        logger.debug('- Running ZAP %s !', __version__)
+        logger.debug('--- Running ZAP %s', __version__)
     t0 = time()
     if not isinstance(cubefits, string_types):
         raise TypeError('The process method only accepts a single datacube '
@@ -200,10 +196,11 @@ def process(cubefits, cube=None, hdr=None, outcubefits='DATACUBE_ZAP.fits', clea
         # twice the zlevel and continuumfilter steps.
         extSVD = SVDoutput(cubefits, clean=clean, zlevel=zlevel,
                            cftype=cftype, cfwidth=cfwidthSVD, mask=mask,
-                           instrument=instrument, boost=boost)
+                           instrument=instrument, boost=boost, segment_sky=segment_sky)
 
     zobj = Zap(cubefits, pca_class=pca_class, n_components=n_components,
-               instrument=instrument, cube=cube, hdr=hdr, logger=logger)
+               instrument=instrument, cube=cube, hdr=hdr, logger=logger,
+               segment_sky=segment_sky)
     zobj._run(clean=clean, zlevel=zlevel, cfwidth=cfwidthSP, cftype=cftype,
               nevals=nevals, extSVD=extSVD, boost=boost, contmask=contmask,
               reject_factor=reject_factor)
@@ -226,7 +223,7 @@ def process(cubefits, cube=None, hdr=None, outcubefits='DATACUBE_ZAP.fits', clea
 def SVDoutput(cubefits, cube=None, hdr=None, stack=None, clean=True, zlevel='median', 
               cftype='weight', cfwidth=100, mask=None, ncpu=None, pca_class=None,
               n_components=None, instrument='MUSE', boost=50, contmask=None,
-              reject_factor=0.0, logger=None):
+              reject_factor=0.0, logger=None, segment_sky=False):
     """Performs the SVD decomposition of a datacube.
 
     This allows to use the SVD for a different datacube. It used to allow to
@@ -261,7 +258,8 @@ def SVDoutput(cubefits, cube=None, hdr=None, stack=None, clean=True, zlevel='med
         NCPU = ncpu
 
     zobj = Zap(cubefits, cube=cube, hdr=hdr, pca_class=pca_class, 
-               n_components=n_components, instrument=instrument, logger=logger)
+               n_components=n_components, instrument=instrument, 
+               logger=logger, segment_sky=segment_sky)
     zobj._prepare(clean=clean, zlevel=zlevel, cftype=cftype,
                   cfwidth=cfwidth, mask=mask, stack=stack)
     zobj._msvd()
@@ -380,7 +378,8 @@ class Zap(object):
     """
 
     def __init__(self, cubefits, cube=None, hdr=None, pca_class=None, 
-                 n_components=None, instrument='MUSE', logger=None):
+                 n_components=None, instrument='MUSE', logger=None, 
+                 segment_sky=False):
 
         self.logger = logger
 
@@ -439,6 +438,7 @@ class Zap(object):
 
         # Extraction results
         self.stack = None
+        self.sigma_mask = None
         self.y = None
         self.x = None
 
@@ -452,9 +452,15 @@ class Zap(object):
         laxmax = max(self.laxis)
 
         ## List of segmentation limits
-        skyseg = np.array(SKYSEG)
-        contseg = np.array(CONTSEG)
-        contflag = np.array(CONTFLAG)
+#        if segment_sky:
+#            skyseg = np.array([0, 12450, 12890, 15650, 16000, 26000])
+#        else:
+        skyseg = np.array([0, 26000])
+        contseg = np.array([0, 10140, 10670, 11250, 11960, 12450, 12890, 14000, 14720, 
+                            15650, 16000, 16356, 17253, 18400, 19570, 20950, 22000, 
+                            23500, 24600, 26000])
+        contflag = np.array([0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0])
+
 
         #skyseg = np.array(SKYSEG)
         crop_sky = (skyseg > laxmin) & (skyseg < laxmax)
@@ -538,13 +544,6 @@ class Zap(object):
             else: 
                 self._externalzlevel(extzlevel)
         
-        #if extzlevel is None:
-        #    if zlevel.lower() != 'none':
-        #        self._zlevel(calctype=zlevel)
-        #else:
-        #    if zlevel.lower() != 'none':
-        #        self._externalzlevel(extzlevel)
-
         # handling rejection of spectral channels in continuum estimate (1=bad)
         if contmask is None:
             contmask = np.zeros(self.stack.shape[0], dtype=np.int)
@@ -554,6 +553,9 @@ class Zap(object):
         # remove the continuum level - this is multiprocessed to speed it up
         self._continuumfilter(cfwidth=cfwidth, cftype=cftype, boost=boost,
                               contmask=contmask, reject_factor=reject_factor)
+
+        #flag deviant pixels in the continuum-cleaned spectra
+        self._flag_pixels()
 
         # normalize the variance in the segments.
         self._normalize_variance()
@@ -626,14 +628,37 @@ class Zap(object):
 
         """
         # make a map of spaxels with NaNs
-        badmap = (np.logical_not(np.isfinite(self.cube))).sum(axis=0)
+        #badmap = (np.logical_not(np.isfinite(self.cube))).sum(axis=0)
+        badmap = np.zeros_like(self.cube, dtype=bool).sum(axis=0)
+
         # get positions of those with no NaNs
         self.y, self.x = np.where(badmap == 0)
+        
         # extract those positions into a 2d array
         self.stack = self.cube[:, self.y, self.x]
+
         if self.logger is not None:
-            self.logger.debug('Extract to 2D, %d valid spaxels (%d%%)', len(self.x),
+            self.logger.debug('--- Extract to 2D, %d valid spaxels (%d%%)', len(self.x),
                         len(self.x) / np.prod(self.cube.shape[1:]) * 100)
+
+
+    def _flag_pixels(self):
+        #setup masked array for inversion
+        mstack = np.nanmedian(self.normstack, axis=1)
+        dev = np.clip(mad_std(self.normstack, axis=1, ignore_nan=True), 1e-10, None)
+        self.sigma_mask = (np.fabs(self.normstack-mstack[:,np.newaxis])/dev[:,np.newaxis] > 3.)# | np.isnan(self.stack)
+       
+        #iteratively clean pixels for reconstruction
+        for ii in range(5):
+            old_mask = np.copy(self.sigma_mask)
+            tarray = np.copy(self.normstack)
+            tarray[self.sigma_mask] = np.nan
+
+            mstack = np.nanmedian(tarray, axis=1)
+            dev = np.clip(mad_std(tarray, axis=1, ignore_nan=True), 1e-10, None)
+            self.sigma_mask = (np.fabs(self.normstack-mstack[:,np.newaxis])/dev[:,np.newaxis] > 3.)# | np.isnan(self.stack)
+            if np.all(self.sigma_mask == old_mask):
+                break
 
     def _externalzlevel(self, extSVD):
         """Remove the zero level from the extSVD file."""
@@ -705,7 +730,7 @@ class Zap(object):
             raise ValueError("cftype must be weight, median, fit or none, "
                              "got {}".format(cftype))
         if self.logger is not None:
-            self.logger.debug('Applying Continuum Filter, cftype=%s', cftype)
+            self.logger.debug('--- Applying Continuum Filter, cftype=%s', cftype)
         self._cftype = cftype
         self._cfwidth = cfwidth
 
@@ -757,19 +782,14 @@ class Zap(object):
     def _normalize_variance(self):
         """Normalize the variance in the segments."""
         if self.logger is not None:
-            self.logger.debug('Normalizing variances')
-        # self.variancearray = np.std(self.stack, axis=1)
-        # self.normstack /= self.variancearray[:, np.newaxis]
+            self.logger.debug('--- Normalizing variances')
 
         nseg = len(self.pranges)
         self.variancearray = var = np.zeros((nseg, self.stack.shape[1]))
         for i in range(nseg):
             pmin, pmax = self.pranges[i]
-            #var[i, :] = np.maximum(np.var(self.normstack[pmin:pmax, :], axis=0), 1.0e-10)
-            #var[i, :] = np.maximum(bn.nanvar(self.normstack[pmin:pmax, :], axis=0), 1.0e=10)
-            var[i, :] = np.maximum((mad_std(self.normstack[pmin:pmax, :], axis=0))**2, 1.0e-10)
+            var[i, :] = np.maximum(np.nanvar(self.normstack[pmin:pmax, :], axis=0), 1.0e-10)
             self.normstack[pmin:pmax, :] /= var[i, :]
-        
 
     @timeit
     def _msvd(self):
@@ -826,7 +846,7 @@ class Zap(object):
 
         if len(nevals) == 1:
             if self.logger is not None:
-                self.logger.debug('-- Choosing %s eigenspectra for all segments', nevals)
+                self.logger.debug('--- Choosing %s eigenspectra for all segments', nevals)
             nevals = np.zeros(nranges, dtype=int) + nevals
 
         if nevals.ndim == 1:
@@ -848,10 +868,7 @@ class Zap(object):
             self.logger.info('--- Reconstructing Sky Residuals')
         indices = [x[0] for x in self.pranges[1:]]
 
-        #setup masked array for inversion
-        mnormstack = bn.nanmedian(self.normstack, axis=1)       
-        sigma_mask = ((self.normstack - mnormstack[:,np.newaxis]) > 6.)
-        normstack_ma = np.ma.masked_array(self.normstack, mask=sigma_mask)
+        normstack_ma = np.ma.masked_array(self.normstack, mask=self.sigma_mask)
 
         #use custom transform and inverse transform methods for masked array
         if self.flag_extSVD:
@@ -869,8 +886,6 @@ class Zap(object):
         
         self.recon = np.concatenate([x.T * self.variancearray[i, :]
                                      for i, x in enumerate(Xinv)])
-        # self.recon = np.concatenate([x.T for x in Xinv])
-        # self.recon *= self.variancearray[:, np.newaxis]
 
     def make_cube_from_stack(self, stack, with_nans=False):
         """Stuff the stack back into a cube."""
@@ -912,7 +927,7 @@ class Zap(object):
 
         """
         if self.logger is not None:
-            self.logger.debug('-- Compute number of components')
+            self.logger.debug('--- Compute number of components')
         ncomp = []
         for model in self.models:
             ##original ZAPv2
