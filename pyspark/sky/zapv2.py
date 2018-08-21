@@ -452,15 +452,11 @@ class Zap(object):
         laxmax = max(self.laxis)
 
         ## List of segmentation limits
-#        if segment_sky:
-#            skyseg = np.array([0, 12450, 12890, 15650, 16000, 26000])
-#        else:
         skyseg = np.array([0, 26000])
-        contseg = np.array([0, 10140, 10670, 11250, 11960, 12450, 12890, 14000, 14720, 
-                            15650, 16000, 16356, 17253, 18400, 19570, 20950, 22000, 
-                            23500, 24600, 26000])
-        contflag = np.array([0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0])
-
+        contseg = np.array([0, 10140, 10670, 11250, 11960, 12450, 12890, 14000, 14720,
+                            15650, 16000, 16356, 17253, 18400, 19450, 20000, 20815, 
+                            22000, 23500, 24600, 26000])
+        contflag = np.array([0,0,0,0,0,1,0,0,0,1,0,0,0,0,1,0,1,0,0,0])
 
         #skyseg = np.array(SKYSEG)
         crop_sky = (skyseg > laxmin) & (skyseg < laxmax)
@@ -646,7 +642,7 @@ class Zap(object):
         #setup masked array for inversion
         mstack = np.nanmedian(self.normstack, axis=1)
         dev = np.clip(mad_std(self.normstack, axis=1, ignore_nan=True), 1e-10, None)
-        self.sigma_mask = (np.fabs(self.normstack-mstack[:,np.newaxis])/dev[:,np.newaxis] > 3.)# | np.isnan(self.stack)
+        self.sigma_mask = (np.fabs(self.normstack-mstack[:,np.newaxis])/dev[:,np.newaxis] > 6.)
        
         #iteratively clean pixels for reconstruction
         for ii in range(5):
@@ -656,7 +652,7 @@ class Zap(object):
 
             mstack = np.nanmedian(tarray, axis=1)
             dev = np.clip(mad_std(tarray, axis=1, ignore_nan=True), 1e-10, None)
-            self.sigma_mask = (np.fabs(self.normstack-mstack[:,np.newaxis])/dev[:,np.newaxis] > 3.)# | np.isnan(self.stack)
+            self.sigma_mask = (np.fabs(self.normstack-mstack[:,np.newaxis])/dev[:,np.newaxis] > 6.)
             if np.all(self.sigma_mask == old_mask):
                 break
 
