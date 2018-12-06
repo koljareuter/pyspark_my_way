@@ -3,10 +3,21 @@ import bottleneck as bn
 import numpy as np
 import shutil
 import subprocess
+import os
+import scipy.ndimage as nd
+
+from astropy.io import fits
 
 __all__ = ["nanMAD", "hl_diff", "hsm", "read_cube", "match_obs_rotator",
            "get_cal_rotator", "get_obs_extensions", "run_spark", "find_lines",
-           "reconstruct_wave", "split_sex", "sex_to_deg"]
+           "reconstruct_wave", "split_sex", "sex_to_deg", "band_limits",
+           "make_image", "make_var_cube", "sky_path", "dither_tel2ifu",
+           "dither_ifu2tel"]
+
+
+#static calibration directory based on KMOS_CALIB environment variable
+static_cal = os.environ['KMOS_CALIB']
+
 
 def nanMAD(a, axis=None):
     """Compute the Median Absolute Deviation accounting
@@ -256,4 +267,95 @@ def sex_to_deg(alpha, delta):
 
     return ra_out, dec_out
 
+def band_limits(band):
+    #open the calibration file and fetch wavelengths
+    rfile = fits.open('{0}/kmos_wave_band.fits'.format(static_cal))
+    rtab = rfile[1].data
+    rfile.close()
+    return rtab[band.upper()]
+
+
+def make_image(wl, data, noise, mask, llim=1.05, hlim=1.35):
+    nwl, nx, ny = data.shape
+
+    left_idx, right_idx = np.searchsorted(wl, llim, side='left'), np.searchsorted(wl, hlim, side='right')
+    det_image = np.zeros((nx, ny), dtype=float)
+
+    for jj in range(nx):
+        for kk in range(ny):
+            this_data = data[:,jj,kk]
+            this_var = noise[:,jj,kk]**2
+
+            #generate masking for this object
+            good = np.ones(len(this_data), dtype=bool)
+            good[(wl > 1.25) & (wl < 1.29)] = False
+            good[mask] = False
+            good[:left_idx], good[right_idx:] = False, False
+            good[this_var <= 0] = False
+            good[np.isnan(this_data) | ~np.isfinite(this_data)] = False
+
+            this_data = this_data[good]
+            this_var = this_var[good]
+
+            srt = np.argsort(this_data)
+            srt_data = this_data[srt]
+            srt_ivar = 1./this_var[srt]
+
+            #imean = bn.nanmedian(srt_data)
+            imean = bn.nansum(srt_data*srt_ivar)/bn.nansum(srt_ivar)
+            for iter in range(2):
+                dev = (srt_data-imean)**2
+                srt_iwt = np.copy(srt_ivar)
+                outlier = (np.sqrt(dev*srt_ivar) > 3.)
+                srt_iwt[outlier] = srt_ivar[outlier]/(1.+(dev*srt_ivar)[outlier])
+                imean = bn.nansum(srt_data*srt_iwt)/bn.nansum(srt_iwt) 
+            det_image[jj,kk] = np.copy(imean)
+
+    det_image[~np.isfinite(det_image)] = 0.
+    return det_image
+
+
+def make_var_cube(input_cube): 
+    """ stupid estimate of the noise in the cube using a volumetric 
+    maximum filter.  Input should *not* be sky subtracted for this to 
+    be of any use what so ever (and even then...)"""
+    filt_cube = nd.filters.maximum_filter(input_cube, size=(3,3,3))
+    filt_cube[np.isnan(filt_cube) | ~np.isfinite(filt_cube)] = 0.
+    return filt_cube
+
+
+def sky_path(subdir, inputdir=None, **kwargs):
+    """ returns proper path for sky files """
+    mpath = os.path.join(subdir, 'sky')
+    return os.path.join(inputdir, mpath)
+
+
+def dither_tel2ifu(xoff, yoff, header):
+    """
+    convert telescope dither to ifu coords.  Takes offsets in pixels
+    """
+    dxx = float(header['CD1_1'])
+    dxy = float(header['CD1_2'])
+
+    dyx = float(header['CD2_1'])
+    dyy = float(header['CD2_2'])
+
+    delx, dely = float(header['CDELT1']), float(header['CDELT2'])
+    return (dxx*xoff + dxy*yoff)/delx, (dyx*xoff + dyy*yoff)/dely
+
+def dither_ifu2tel(ifu_shiftx, ifu_shifty, header):
+    """
+    convert dither in ifu coords to sky plane.  Takes shifts in pixels
+    """
+    dxx = float(header['CD1_1'])
+    dxy = float(header['CD1_2'])
+
+    dyx = float(header['CD2_1'])
+    dyy = float(header['CD2_2'])
+
+    delx, dely = float(header['CDELT1']), float(header['CDELT2'])
+
+    tx = (ifu_shiftx*delx - ifu_shifty*dely*dxy/dyy)/(dxx - dyx*dxy/dyy)
+    ty = (ifu_shifty*dely - ifu_shiftx*delx*dyx/dxx)/(dyy - dxy*dyx/dxx)
+    return round(tx, 3), round(ty, 3)
 

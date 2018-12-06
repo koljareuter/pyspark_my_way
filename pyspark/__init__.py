@@ -8,6 +8,6 @@ from . import utils
 from . import calibration
 from . import cubes
 from . import sky
+from . import combine
 
-
-__all__ = ['detector', 'utils', 'calibration', 'cubes', 'sky']
+__all__ = ['detector', 'utils', 'calibration', 'cubes', 'sky', 'combine']

@@ -8,6 +8,7 @@ import getpass
 import re
 import random
 import string
+#import json
 
 try:
     import configparser
@@ -63,6 +64,12 @@ def set_config(configfile=None, logger=None):
     else:
         folders = re.split(',|\n', input_params.get('pathing', 'subdirs').strip())
 
+    #read in star prefixes?
+    if input_params.has_option('cubes', 'star_prefix'):
+        star_names = re.split(',|\n', input_params.get('cubes', 'star_prefix').strip())
+    else:
+        star_names = None
+    
     #A shitty use of configparser: we're building our own dictionary
     #for driving most of the reduction procedures.
     run_params = {'obsband': bands,
@@ -95,19 +102,41 @@ def set_config(configfile=None, logger=None):
 
     if input_params.has_section('cubes'):
         cdict = {'inputdir': input_params.get('pathing','procdir'),
-                'outputdir': input_params.get('pathing','procdir')}
+                'outputdir': input_params.get('pathing','procdir'),
+                'star_prefix': star_names,
+                }
         
         #include prefix value if provided
         if input_params.has_option('detector', 'prefix'):
             cdict['prefix'] = input_params.get('detector', 'prefix')
 
-        cdict.update(dict((opt, booldir[input_params.get('cubes',opt)]) 
-                     if input_params.get('cubes',opt) in ['True','False'] 
-                     else (opt, input_params.get('cubes', opt)) 
-                     for opt in input_params.options('cubes')))
+        copts = input_params.options('cubes')
+        for opt in copts:
+            if opt != 'star_prefix':
+                if input_params.get('cubes', opt) in ['True', 'False']:
+                    cdict[opt] = booldir[input_params.get('cubes',opt)]
+                else:
+                    cdict[opt] = input_params.get('cubes',opt)
         run_params['cubes'] = cdict
 
     
+    if input_params.has_section('combine'):
+        combdict = {'inputdir': input_params.get('pathing','procdir'),
+                'outputdir': input_params.get('pathing','procdir'),
+                }
+
+        #include prefix value if provided
+        if input_params.has_option('detector', 'prefix'):
+            combdict['prefix'] = input_params.get('detector', 'prefix')
+
+
+        combdict.update(dict((opt, booldir[input_params.get('combine',opt)]) 
+                     if input_params.get('combine',opt) in ['True','False'] 
+                     else (opt, input_params.get('combine', opt)) 
+                     for opt in input_params.options('combine')))
+        run_params['combine'] = combdict
+
+   
 
     return run_params
 

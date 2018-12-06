@@ -8,7 +8,7 @@ import argparse
 from pyspark.utils import (fileutils, setuputils, obsutils)
 from pyspark.detector import fix_detector_levels
 from pyspark.calibration import make_spark_calibs
-from pyspark.cubes import (reconstruct, velocity_correct, illuminate)
+from pyspark.cubes import (reconstruct, velocity_correct, illuminate, bkg_correct)
 from pyspark.sky import subtract_sky
 
 
@@ -75,6 +75,17 @@ for band in bands:
                 master_log=master_logger)
        
 
+        # -- calibrations -----------------------
+        master_logger.info('- Running calibrations')
+        ecode, comp = make_spark_calibs(logger=dir_logger, subdir=folder, obsband=band, 
+                          **run_params['calibration'])
+        if ecode:
+            break_check(comp, master_logger)
+            continue
+        master_logger.info('-- Finished calibrations')
+        master_logger.info(' ')
+
+
         # -- detector corrections ----------------
         master_logger.info('- Running detector corrections')
         
@@ -83,7 +94,9 @@ for band in bands:
                 inputdir=rawdir, obsband=band)
 
         #apply detector fix(es)
-        if run_params['detector']['channel_correct'] or run_params['detector']['picture_correct']:
+        if run_params['detector']['channel_correct'] or \
+           run_params['detector']['picture_correct'] or \
+           run_params['detector']['interchannel_correct']:
             try:
                 fix_detector_levels([frame for frame, type in frames], subdir=folder, 
                         logger=dir_logger, **run_params['detector'])
@@ -97,16 +110,6 @@ for band in bands:
             master_logger.info('-- Finished detector corrections')
             master_logger.info(' ')
 
-
-        # -- calibrations -----------------------
-        master_logger.info('- Running calibrations')
-        ecode, comp = make_spark_calibs(logger=dir_logger, subdir=folder, obsband=band, 
-                          **run_params['calibration'])
-        if ecode:
-            break_check(comp, master_logger)
-            continue
-        master_logger.info('-- Finished calibrations')
-        master_logger.info(' ')
 
 
         # -- reconstruct -----------------------
@@ -142,10 +145,21 @@ for band in bands:
         master_logger.info(' ')
 
 
+        # -- global background correction
+        master_logger.info('- Applying global background correction')
+        ecode = bkg_correct(logger=dir_logger, subdir=folder, obsband=band,
+                            search_suffix='s_i', **run_params['cubes'])
+        if ecode:
+            break_check('background correction', master_logger)
+            continue
+        master_logger.info('-- Finished background correction')
+        master_logger.info(' ')
+
+
         # -- barycentric velocity correction -----
         master_logger.info('- Applying heliocentric correction')
         ecode = velocity_correct(logger=dir_logger, subdir=folder, obsband=band, 
-                                 search_suffix='s_i', **run_params['cubes'])
+                                 search_suffix='s_i_bkg', **run_params['cubes'])
         if ecode:
             break_check('velocity correction', master_logger)
             continue

@@ -192,6 +192,6 @@ def velocity_correct(logger=None, subdir=None, obsband=None, rvcorr=True,
 
             #fluxh
             ofile[0].header['HISTORY'] = "Applied heliocentric correction {0:.2f} km/s".format(float(vbary.value))
-            ofile[0].header['HIERARCH ESO K3D VHELIO'] = vbary.value 
+            ofile[0].header['HIERARCH ESO PYSPARK VHELIO'] = vbary.value 
     
     return 0

@@ -12,10 +12,11 @@ from .._version import __version__
 
 
 
-__all__ = ["get_channel_correct", "get_picture_correct", "fix_detector_levels"]
+__all__ = ["get_ref_channel_correct", "get_picture_correct", "fix_detector_levels",
+           "get_interchannel_correct"]]
 
 
-def get_channel_correct(input_frame):
+def get_ref_channel_correct(input_frame):
     """Given an input exposure, estimate and remove individual H2RG channel 
     drifts using reference pixels.  Applies both a row and column correction.
     
@@ -112,6 +113,11 @@ def get_picture_correct(input_frame, detector=None):
     return picture_coeff*reference_coeff
 
 
+
+def get_interchannel_correct(input_frame, detector=None):
+    pass
+
+
 def fix_detector_levels(frame_list, subdir=None, inputdir=None, outputdir=None, prefix=None, 
         channel_correct=True, picture_correct=True, logger=None, **kwargs):
 
@@ -141,14 +147,20 @@ def fix_detector_levels(frame_list, subdir=None, inputdir=None, outputdir=None, 
             for det in range(1,4):
                 channel_array = 0.
                 picture_array = 0.
+                interchannel_array = 0.
 
                 orig_data = np.array(fdata[det].data)
                 orig_header = fdata[det].header
 
                 if channel_correct:
-                    logger.debug('-- Applying channel correction to detector {0}'.format(det))
-                    channel_array = get_channel_correct(orig_data)
+                    logger.debug('-- Applying reference correction to detector {0}'.format(det))
+                    channel_array = get_ref_channel_correct(orig_data)
                     orig_header['history'] = 'Applied channel correction {0}'.format(get_date()) 
+
+                if interchannel_correct:
+                    logger.debug('-- Applying inter-channel correction to detector {0}'.format(det))
+                    interchannel_array = get_interchannel_correct(orig_data, detector=det)
+                    orig_header['history'] = 'Applied interchannel correction {0}'.format(get_date()) 
 
                 if picture_correct:
                     logger.debug('-- Applying picture frame correction to detector {0}'.format(det))
@@ -156,7 +168,10 @@ def fix_detector_levels(frame_list, subdir=None, inputdir=None, outputdir=None, 
                     orig_header['history'] = 'Applied picture frame correction {0}'.format(get_date()) 
 
                 #update the data in place
-                fdata[det].data = orig_data - channel_array - picture_array
+                fdata[det].data = orig_data - channel_array - picture_array - interchannel_array
             
             fdata.flush()
     return
+
+
+

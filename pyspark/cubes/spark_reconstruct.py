@@ -26,7 +26,7 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
     #path for the calibration directory
     caldir = os.path.join(kwargs['inputdir'], subdir, 'calib')
     
-    #get list of flat frames for processing
+    #get list of science frames for processing
     frames = get_sof_list(filetype='science', subdir=subdir, obsband=obsband, **kwargs)
 
     #write temporary .sof file to feed to
@@ -68,10 +68,8 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
     else:
         routine_args += '-no_subtract=TRUE -sky_tweak=FALSE '
 
-    if combine:
-        routine_args += '-no_combine=FALSE '
-    else:
-        routine_args += '-no_combine=TRUE '
+    #never combine at this stage
+    routine_args += '-no_combine=TRUE '
 
     #execute spark script
     if logger is not None:

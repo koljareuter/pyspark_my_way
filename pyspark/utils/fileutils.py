@@ -7,7 +7,8 @@ import subprocess
 import time
 
 __all__ = ["clean_move", "get_obs_extensions", "fetch_resource_path", 
-           "get_sof_list", "duplicate", "get_obs_exposures", "patch_header"]
+           "get_sof_list", "duplicate", "get_obs_exposures", "patch_header",
+           "update_header"]
 
 dateobsfmt = "%Y-%m-%dT%H:%M:%S.%f"
 
@@ -213,10 +214,10 @@ def get_sof_list(filetype=None, subdir=None, inputdir=None, obsband=None,
             p.wait()
 
         dark_times = list(store_darks.keys())
-        if darkexp is not None and darkexp in dark_times:
+        if darkexp is not None and int(darkexp) in dark_times:
             if logger is not None:
                 logger.debug("- Found darks with {0}s".format(darkexp))
-            sof_out = store_darks[darkexp]
+            sof_out = store_darks[int(darkexp)]
         elif 60 in dark_times:
             if logger is not None:
                 logger.debug("- {0}s darks not found, falling back to 60s".format(darkexp))
@@ -316,6 +317,18 @@ def patch_header(frame, header_keys, reference_frame, ext=0):
         tfile[ext].header[hkey] = (hval, hcom)
     tfile.flush()
     return 0
+
+
+def update_header(frame, header_dict, ext=0):
+    """ Given a reference frame and list of header keywords, copy header 
+    values into frame. 
+    """
+    tfile = fits.open(frame, mode='update')
+    for hkey in header_dict.keys():
+        tfile[ext].header[hkey] = header_dict[hkey]
+    tfile.flush()
+    return 0
+
 
 
 def verify_structure(outputdir=None, subdir=None):
