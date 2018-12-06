@@ -13,7 +13,7 @@ from .._version import __version__
 
 
 __all__ = ["get_ref_channel_correct", "get_picture_correct", "fix_detector_levels",
-           "get_interchannel_correct"]]
+           "get_interchannel_correct"]
 
 
 def get_ref_channel_correct(input_frame):
