@@ -280,9 +280,9 @@ def get_obs_exposures(inputdir=None, subdir=None, obsband=None, prefix=None,
         expected_split += len(prefix.split('_'))
 
     if suffix is None:
-        dfits_string = 'dfits '+filepath+'*.fits | fitsort date-obs ins.grat1.id ocs.arm1.name ocs.arm2.name ocs.arm3.name | tail -n +2'
+        dfits_string = 'dfits '+filepath+'*.fits | fitsort date-obs ins.grat1.id det.seq1.dit ocs.arm1.name ocs.arm2.name ocs.arm3.name | tail -n +2'
     else:
-        dfits_string = 'dfits '+filepath+'*{0}.fits | fitsort date-obs ins.grat1.id ocs.arm1.name ocs.arm2.name ocs.arm3.name | tail -n +2'.format('_{0}'.format(suffix))
+        dfits_string = 'dfits '+filepath+'*{0}.fits | fitsort date-obs ins.grat1.id det.seq1.dit ocs.arm1.name ocs.arm2.name ocs.arm3.name | tail -n +2'.format('_{0}'.format(suffix))
         expected_split += len(suffix.split('_'))
     
     # run the query, sort things into object and sky
@@ -296,9 +296,9 @@ def get_obs_exposures(inputdir=None, subdir=None, obsband=None, prefix=None,
             if len(os.path.split(sline[0])[1].split('_')) == expected_split:
                 if all([True if ent not in ['ARM1_SKY','ARM2_SKY','ARM3_SKY'] else False
                         for ent in sline[-3:]]) and sline[2] == obsband:
-                    exposures.append((os.path.join(fpath, sline[0]), 'OBJ', time.mktime(time.strptime(sline[1], dateobsfmt))))
+                    exposures.append((os.path.join(fpath, sline[0]), 'OBJ', time.mktime(time.strptime(sline[1], dateobsfmt)), float(sline[3])))
                 elif sline[2] == obsband:
-                    exposures.append((os.path.join(fpath, sline[0]), 'SKY', time.mktime(time.strptime(sline[1], dateobsfmt))))
+                    exposures.append((os.path.join(fpath, sline[0]), 'SKY', time.mktime(time.strptime(sline[1], dateobsfmt)), float(sline[3])))
         p.wait()
 
     return exposures

@@ -33,17 +33,22 @@ def match_obj_sky(exposures):
     a list of object,sky tuples, where the matching is done by closest time.
     """
     #pull out times
-    time_dict = dict([(efile, etime) for efile, _, etime in exposures])
+    time_dict = dict([(efile, etime) for efile, _, etime, _ in exposures])
 
     #lookup table of times
-    object_exposures = [efile for efile, etype, _ in exposures if etype == 'OBJ'] 
-    sky_exposures = [efile for efile, etype, _ in exposures if etype == 'SKY'] 
-    sky_times = [time_dict[efile] for efile in sky_exposures]
+    object_exposures = [(efile, dit) for efile, etype, _, dit in exposures if etype == 'OBJ'] 
+    sky_exposures = [(efile, dit) for efile, etype, _, dit in exposures if etype == 'SKY'] 
+    #sky_times = [time_dict[efile] for efile, _ in sky_exposures]
+    #sky_dits = np.array([dit for _, dit in sky_exposures])
 
     obj_sky_pair = []
-    for obj in object_exposures:
-        sky_idx = np.argmin(np.fabs(np.array(sky_times) - time_dict[obj]))
-        obj_sky_pair.append((obj, sky_exposures[sky_idx]))
+    for obj, odit in object_exposures:
+        #only consider skys matched by exposure time
+        matched_skys = [efile for efile, dit in sky_exposures if dit == odit]
+        matched_times = [time_dict[efile] for efile, dit in sky_exposures if dit == odit]
+
+        sky_idx = np.argmin(np.fabs(np.array(matched_times) - time_dict[obj]))
+        obj_sky_pair.append((obj, matched_skys[sky_idx], odit))
 
     return obj_sky_pair
 
@@ -129,16 +134,21 @@ def bb_lambda(wave, temp):
 def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None, 
             inputdir=None, suffix='s', tbsub=False, **kwargs):
 
-    #fetch the superdark reference frame for this detector
-    svd_file = 'ZAPv2_SVD_{0}_n500004.fits'.format(obsband.upper())
-    fpath = fetch_resource_path('data/{0}'.format(svd_file))
-    
-    #if logger is not None:
-    #    logger.debug("- Subtracting sky using {0}".format(svd_file))
-    
-    for obj_exp, sky_exp in matched_exposures:
+    for obj_exp, sky_exp, dit in matched_exposures:
         input_path = os.path.split(obj_exp)[0]
         output_path = os.path.join(inputdir, subdir, 'science')
+
+        #fetch the superdark reference frame for this detector
+        if obsband.upper() == 'YJ':
+            if int(dit) == 300:
+                svd_file = 'ZAPv2_SVD_{0}_n500004_e300.fits'.format(obsband.upper())
+            elif int(dit) == 600:
+                logger.warning("- Using 600s SVD file")
+                svd_file = 'ZAPv2_SVD_{0}_n9504_e600.fits'.format(obsband.upper())
+        else:
+            svd_file = 'ZAPv2_SVD_{0}_n500004.fits'.format(obsband.upper())
+
+        fpath = fetch_resource_path('data/{0}'.format(svd_file))
 
         # copy object frame to output
         exp_sub = duplicate(obj_exp, outputdir=output_path, suffix=suffix) 
