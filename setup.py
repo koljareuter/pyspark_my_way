@@ -117,7 +117,7 @@ if __name__ == "__main__":
                                   "data/ZAPv1_SVD_YJ_n500004.fits",
                                   "data/ZAPv1_SVD_H_n500004.fits",
                                   "data/ZAPv1_SVD_K_n500004.fits",
-                                  "data/new_ZAPv2_SVD_YJ_n9504_e600.fits"]},
+                                  "data/ZAPv2_SVD_YJ_n9504_e600.fits"]},
         include_package_data=True,
         zip_safe=False,
     )

@@ -6,4 +6,4 @@ include pyspark/data/ZAPv2_SVD_K_n500004.fits
 include pyspark/data/ZAPv1_SVD_YJ_n500004.fits
 include pyspark/data/ZAPv1_SVD_H_n500004.fits
 include pyspark/data/ZAPv1_SVD_K_n500004.fits
-include pyspark/data/new_ZAPv2_SVD_YJ_n9504_e600.fits
+include pyspark/data/ZAPv2_SVD_YJ_n9504_e600.fits

@@ -141,7 +141,7 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
         #fetch the superdark reference frame for this detector
         if obsband.upper() == 'YJ':
             if int(dit) == 300:
-                svd_file = 'ZAPv2_SVD_{0}_n500004_e300.fits'.format(obsband.upper())
+                svd_file = 'ZAPv2_SVD_{0}_n500004.fits'.format(obsband.upper())
             elif int(dit) == 600:
                 logger.warning("- Using 600s SVD file")
                 svd_file = 'ZAPv2_SVD_{0}_n9504_e600.fits'.format(obsband.upper())
