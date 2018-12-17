@@ -8,7 +8,7 @@ import argparse
 from pyspark.utils import (fileutils, setuputils, obsutils)
 from pyspark.detector import fix_detector_levels
 from pyspark.calibration import make_spark_calibs
-from pyspark.cubes import (reconstruct, velocity_correct, illuminate, bkg_correct)
+from pyspark.cubes import (reconstruct, velocity_correct, illuminate, bkg_correct_2d)
 from pyspark.sky import subtract_sky
 
 
@@ -147,7 +147,7 @@ for band in bands:
 
         # -- global background correction
         master_logger.info('- Applying global background correction')
-        ecode = bkg_correct(logger=dir_logger, subdir=folder, obsband=band,
+        ecode = bkg_correct_2d(logger=dir_logger, subdir=folder, obsband=band,
                             search_suffix='s_i', **run_params['cubes'])
         if ecode:
             break_check('background correction', master_logger)
