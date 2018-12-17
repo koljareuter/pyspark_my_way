@@ -60,7 +60,7 @@ def illuminate(logger=None, subdir=None, obsband=None,
                 except ValueError:
                     continue
                 else:
-                    ofile[ifu].data = cube/icorr
+                    ofile[ifu].data = np.asarray(cube/icorr, dtype=np.float32)
 
             ofile[0].header['HISTORY'] = "Applied illumination correction at {0:03} deg".format(int(match_rot))
            

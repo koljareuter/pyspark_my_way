@@ -188,7 +188,7 @@ def velocity_correct(logger=None, subdir=None, obsband=None, rvcorr=True,
                 else:
                     wave = reconstruct_wave(ofile[ifu].header)
                     corr_cube = rvcorr_cube(wave, cube, vbary)
-                    ofile[ifu].data = corr_cube
+                    ofile[ifu].data = np.asarray(corr_cube, dtype=np.float32)
 
             #fluxh
             ofile[0].header['HISTORY'] = "Applied heliocentric correction {0:.2f} km/s".format(float(vbary.value))

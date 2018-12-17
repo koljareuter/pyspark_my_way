@@ -4,17 +4,23 @@ import bottleneck as bn
 import os
 import astropy.io.fits as fits
 
-from ..utils.obsutils import hl_diff
+from astropy.stats.biweight import (biweight_location, biweight_scale)
+
+from ..utils.obsutils import (hl_diff, hsm)
 from ..utils.fileutils import (fetch_resource_path, clean_copy, duplicate)
 from ..utils.setuputils import get_date
 
 from .._version import __version__
 
+from astropy.convolution import (convolve, Box1DKernel)
 
 
 __all__ = ["get_ref_channel_correct", "get_picture_correct", "fix_detector_levels",
            "get_interchannel_correct"]
 
+
+#static calibration directory based on KMOS_CALIB environment variable
+static_cal = os.environ['KMOS_CALIB']
 
 def get_ref_channel_correct(input_frame):
     """Given an input exposure, estimate and remove individual H2RG channel 
@@ -28,7 +34,7 @@ def get_ref_channel_correct(input_frame):
     Returns
     -------
     ref_correct : ndarray
-        Detector image corrected for row and column shifts.
+        Correction to be applied for row and column shifts.
    """
 
     #first pixel is always a bit funny
@@ -114,18 +120,57 @@ def get_picture_correct(input_frame, detector=None):
 
 
 
-def get_interchannel_correct(input_frame, detector=None):
-    pass
+def get_interchannel_correct(input_frame, detector=None, caldir=None, obsband=None):
+
+    #get the mask from the interslice calibration file
+    slice_mask = fits.getdata(os.path.join(caldir, 'master_channel_{0}{0}{0}.fits'.format(obsband)),ext=detector)
+
+    #iterate over each slice in on this detector
+    cvals = np.zeros(32, dtype=np.float)
+    for chan in range(32):
+        this_channel = input_frame[:,chan*64:chan*64+64]
+        this_mask = slice_mask[:,chan*64:chan*64+64]
+
+        trimmed_channel = this_channel[this_mask == 1]
+        
+        #remove upper 50 percentile
+        val = hsm(trimmed_channel[trimmed_channel <= np.median(trimmed_channel)])
+        cvals[chan] = val
+
+    filt = np.copy(cvals)
+    norm = convolve(np.ones(len(cvals)-2), Box1DKernel(4))
+    filt[1:-1] = convolve(cvals[1:-1], Box1DKernel(4))/norm
+
+
+    #normalize to zero mean, excluding crazy outliers
+    cvals -= filt
+    med = biweight_location(cvals)
+    sig = biweight_scale(cvals)
+
+    cvals -= med
+    cvals[(np.fabs(cvals)/sig > 3.)] = 0.
+
+    #reconstruct the correction array
+    tcorr = np.zeros((2048,2048), dtype=np.float)
+    for chan in range(32):
+        tcorr[:,chan*64:chan*64+64] = cvals[chan]
+
+    return tcorr
 
 
 def fix_detector_levels(frame_list, subdir=None, inputdir=None, outputdir=None, prefix=None, 
-        channel_correct=True, picture_correct=True, logger=None, **kwargs):
+        channel_correct=True, picture_correct=True, interchannel_correct=False, logger=None, 
+        obsband=None, **kwargs):
 
     """ Given an input set of frames, apply detector-level 
     corrections and write out the new set of frames.
     """
 
     nframes = len(frame_list)
+
+
+    #path for the output calibration directory
+    caldir = os.path.join(outputdir, subdir, 'calib')
 
     #iterate over each frame and apply requested corrections
     for frame in frame_list:
@@ -134,11 +179,9 @@ def fix_detector_levels(frame_list, subdir=None, inputdir=None, outputdir=None, 
         if logger is not None:
             logger.debug('- Copying {0} to {1}'.format(frame.split('/')[-1], '_'.join([prefix, fname])))
         outname = duplicate(frame, outputdir=os.path.join(outputdir, subdir), prefix=prefix)
-    
-
         
         #perform any detector corrections (if requested)
-        if channel_correct or picture_correct:
+        if channel_correct or picture_correct or interchannel_correct:
             fdata = fits.open(outname, mode='update')
 
             fdata[0].header['history'] = 'Processed by PySPARK {0} {1}'.format(__version__, get_date())
@@ -147,7 +190,7 @@ def fix_detector_levels(frame_list, subdir=None, inputdir=None, outputdir=None, 
             for det in range(1,4):
                 channel_array = 0.
                 picture_array = 0.
-                interchannel_array = 0.
+                interslice_array = 0.
 
                 orig_data = np.array(fdata[det].data)
                 orig_header = fdata[det].header
@@ -158,8 +201,10 @@ def fix_detector_levels(frame_list, subdir=None, inputdir=None, outputdir=None, 
                     orig_header['history'] = 'Applied channel correction {0}'.format(get_date()) 
 
                 if interchannel_correct:
+                    #optional correction using interslice pixels
                     logger.debug('-- Applying inter-channel correction to detector {0}'.format(det))
-                    interchannel_array = get_interchannel_correct(orig_data, detector=det)
+                    interslice_array = get_interchannel_correct(orig_data-channel_array, detector=det, caldir=caldir,
+                                                                obsband=obsband)
                     orig_header['history'] = 'Applied interchannel correction {0}'.format(get_date()) 
 
                 if picture_correct:
@@ -168,7 +213,7 @@ def fix_detector_levels(frame_list, subdir=None, inputdir=None, outputdir=None, 
                     orig_header['history'] = 'Applied picture frame correction {0}'.format(get_date()) 
 
                 #update the data in place
-                fdata[det].data = orig_data - channel_array - picture_array - interchannel_array
+                fdata[det].data = orig_data - channel_array - picture_array - interslice_array
             
             fdata.flush()
     return

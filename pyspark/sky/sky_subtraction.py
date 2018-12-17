@@ -182,6 +182,7 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
                     nanmask = np.isfinite(sub_cube)
                     sub_cube[~nanmask] = 0.
 
+
                     zap_obj = process_v2('dummy', cube=sub_cube, hdr=header, clean=False, 
                                         zlevel='none', cftype='med_smooth', cfwidthSP=101, 
                                         extSVD=fpath, interactive=True, overwrite=True,
@@ -202,7 +203,7 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
                     corr_cube = np.copy(zap_obj.cleancube+cleaner_obj.contarray.reshape(sub_cube.shape))
                     corr_cube[~nanmask] = np.nan
 
-                    ofile[ifu].data = corr_cube
+                    ofile[ifu].data = np.asarray(corr_cube, dtype=np.float32)
 
 
 def zap_sky_v1(matched_exposures, logger=None, obsband=None, subdir=None, 
@@ -236,14 +237,28 @@ def zap_sky_v1(matched_exposures, logger=None, obsband=None, subdir=None,
                 else:
                     if logger is not None:
                         logger.info('-- Processing sky subtraction for IFU {0}'.format(ifu))
-                    sub_cube = np.copy(ocube) - np.copy(scube)
-                    nanmask = np.isfinite(sub_cube)
-                    sub_cube[~nanmask] = 0.
 
                     #generate mask array for continuum
                     msky = find_lines(bn.nanmedian(scube[:,1:13,1:13].reshape(2048,-1), axis=1))
+                    
+                    #apply thermal background correction if flagged
+                    if tbsub:
+                        if logger is not None:
+                            logger.info('--- Removing thermal background from object and sky frames')
+                        #reconstruct wavelength solution
+                        wave = reconstruct_wave(header)
 
-                    zap_obj = process_v1('dummy', cube=sub_cube, hdr=header, clean=False, 
+                        #extract 1D spectra from the un-sky-subtracted cubes
+                        scube_corr = sub_thermal(wave, scube, msky)
+                        ocube_corr = sub_thermal(wave, ocube, msky)
+                        sub_cube = np.copy(ocube_corr) - np.copy(scube_corr)
+                    else:
+                        sub_cube = np.copy(ocube) - np.copy(scube)
+                    
+                    nanmask = np.isfinite(sub_cube)
+                    sub_cube[~nanmask] = 0.
+
+                    zap_obj = process_v1('dummy', cube=sub_cube*exp_scale, hdr=header, clean=False, 
                                         zlevel='none', cftype='med_smooth', cfwidthSP=51, 
                                         extSVD=fpath, interactive=True, overwrite=True,
                                         instrument='KMOS', boost=50, contmask=msky,
@@ -252,7 +267,7 @@ def zap_sky_v1(matched_exposures, logger=None, obsband=None, subdir=None,
                     corr_cube = np.copy(zap_obj.cleancube)
                     corr_cube[~nanmask] = np.nan
 
-                    ofile[ifu].data = corr_cube
+                    ofile[ifu].data = np.asarray(corr_cube, dtype=np.float32)
 
 
 def subtract_sky(logger=None, subdir=None, obsband=None, 
