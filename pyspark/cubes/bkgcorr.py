@@ -40,7 +40,7 @@ def bkg_correct_2d(logger=None, subdir=None, obsband=None,
         return 1
 
     # iterate over each exposure, removing background term.
-    for exposure, _, _ in exposures:
+    for exposure, _, _, _ in exposures:
         fpath, fname = os.path.split(exposure)
     
         #copy object to output

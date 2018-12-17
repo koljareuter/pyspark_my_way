@@ -38,7 +38,7 @@ def illuminate(logger=None, subdir=None, obsband=None,
     flat_file.close()
 
     # iterate over each exposure, applying closest angle illumination correction
-    for exposure, _, _ in exposures:
+    for exposure, _, _, _ in exposures:
         fpath = os.path.split(exposure)[0]
 
         #copy object to output

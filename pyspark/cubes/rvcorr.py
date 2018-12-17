@@ -171,7 +171,7 @@ def velocity_correct(logger=None, subdir=None, obsband=None, rvcorr=True,
         return 1
 
     # iterate over each exposure, apply rv correction
-    for exposure, _, _ in exposures:
+    for exposure, _, _, _ in exposures:
         fpath = os.path.split(exposure)[0]
 
         #copy object to output
