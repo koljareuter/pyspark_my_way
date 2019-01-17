@@ -167,7 +167,7 @@ def bkg_correct_spec(logger=None, subdir=None, obsband=None,
                     mask[bkg_image > mode_bkg+dpct] = 0
                     mask[0,:], mask[-1,:], mask[:,0], mask[:,-1] = 0, 0, 0, 0
 
-
+                    ### ABORT!! THIS SCRIPT ISN'T DONE YET ###
 #                    #re-apply to 
 #                    ofile[ifu].data = np.copy(cube)-mode_bkg
 #

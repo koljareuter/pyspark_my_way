@@ -159,7 +159,7 @@ for band in bands:
         # -- barycentric velocity correction -----
         master_logger.info('- Applying heliocentric correction')
         ecode = velocity_correct(logger=dir_logger, subdir=folder, obsband=band, 
-                                 search_suffix='s_i_bkg', **run_params['cubes'])
+                                 search_suffix='s_i_bkg2d', **run_params['cubes'])
         if ecode:
             break_check('velocity correction', master_logger)
             continue

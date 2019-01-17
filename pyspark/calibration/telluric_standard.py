@@ -2,6 +2,7 @@ from __future__ import print_function
 import os
 import numpy as np
 import astropy.units as u
+import glob
 
 from astropy.io import fits
 from astropy.time import Time
@@ -14,11 +15,12 @@ except ImportError:
     pass
 
 from ..utils.fileutils import (get_sof_list, clean_move)
-from ..utils.obsutils import (get_cal_rotator, run_spark, match_obs_rotator, sex_to_deg)
+from ..utils.obsutils import (get_cal_rotator, run_spark, match_obs_rotator, sex_to_deg,
+                              reconstruct_wave)
 from ..utils.setuputils import id_gen
 
 
-__all__ = ["spark_standard", "get_star_info"]
+__all__ = ["spark_standard", "get_star_info", "trace", "get_instrument_response"]
 
 # static calibration directory based on SPARK_HOME environment variable
 static_cal = os.environ['KMOS_CALIB']
@@ -200,3 +202,64 @@ def get_star_info(header=None, query=True):
     else:
         return hdr_star_name, hdr_star_type, hdr_star_mag
 
+def factors(n):
+    return np.array(list({f for i in range(1, int(n**0.5)+1) if n % i == 0 for f in [i, n//i]}))
+
+
+def trace(cube, wave):
+    """ Trace an object through a spectral data cube.
+    """
+    
+    #chunk up the cube to make images for better S/N
+    npix = cube.shape[0]
+    splits = factors(npix)
+    use_split = splits[np.argmin(np.fabs(np.sqrt(npix)-splits))]
+    wave_splits = np.linspace(0,npix-1,use_split+1, dtype=np.int)
+    wave_limits = [(wave[ii], wave[ii+1]) for ii in wave_splits[:-1]]
+
+    for low, high in wave_limits:
+
+
+    
+
+
+
+
+
+
+def get_instrument_response(logger=None, subdir=None, obsband=None, **kwargs):
+    """ produces response curves for each IFU based on the observed standard
+    star and pre-computed relative arm response curves.  Output includes factor
+    to convert from counts to physical units (erg/s/cm^2/A).
+    """
+
+    #identify standard star cubes in this band
+    files = glob.glob('{0}/*cube*_{1}_*.fits'.format(os.path.join(kwargs['outputdir'], subdir, 'std'),obsband.lower()))
+   
+    #iterate over each cube, trace the object and extract its spectrum
+    for file in files[:1]:
+        with fits.open(file) as ofile:
+
+            for ifu in range(1,25):
+                cube = np.array(ofile[ifu].data)
+                
+                try:
+                    oz, ox, oy = cube.shape
+                except ValueError:
+                    continue
+                else:
+                    wave = reconstruct_wave(ofile[ifu].header)
+
+                    #trace the object in the cube
+                    trace_params = trace(cube, wave)
+
+
+
+
+    #   
+    return
+
+def extract_spectrum(logger=None, subdir=None, obsband=None, **kwargs):
+    """
+    """
+    return
