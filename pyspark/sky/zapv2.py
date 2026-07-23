@@ -50,7 +50,7 @@ from time import time
 
 from scipy.interpolate import interp1d
 from sklearn.decomposition import PCA
-from sklearn.decomposition.base import _BasePCA
+from sklearn.decomposition._base import _BasePCA
 
 from ._zap_version import __version2__ as __version__
 
@@ -542,7 +542,7 @@ class Zap(object):
         
         # handling rejection of spectral channels in continuum estimate (1=bad)
         if contmask is None:
-            contmask = np.zeros(self.stack.shape[0], dtype=np.int)
+            contmask = np.zeros(self.stack.shape[0], dtype=int)
         elif contmask.shape[0] != self.stack.shape[0]:
             raise ValueError('Input spectra and continuum mask must have same first dimension')
 

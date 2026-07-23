@@ -9,7 +9,8 @@ import astropy.io.fits as fits
 
 import astropy.units as u
 from scipy.optimize import minimize
-from astropy.modeling.blackbody import blackbody_lambda
+#from astropy.modeling.blackbody import blackbody_lambda
+from astropy.modeling import models
 
 #from .zapv2 import (process, SVDoutput)
 from .zapv2 import process as process_v2
@@ -126,7 +127,8 @@ def res_bb(p, x_in, y_in, mask_in):
 def bb_lambda(wave, temp):
     #generate blackbody spectrum given temperature.  In case we ever need it,
     #put it in physical units (similar to the calibrated spectrum)
-    temp_bb = (blackbody_lambda(wave*u.micron, temp) * u.sr).to(u.watt / u.meter**2 / u.micron) / 1e-17
+    #temp_bb = (blackbody_lambda(wave*u.micron, temp) * u.sr).to(u.watt / u.meter**2 / u.micron) / 1e-17
+    temp_bb = (modeling.BlackBody(wave*u.micron, temp*u.K) * u.sr).to(u.watt / u.meter**2 / u.micron) / 1e-17
     return temp_bb
 
 
@@ -140,11 +142,16 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
 
         #fetch the superdark reference frame for this detector
         if obsband.upper() == 'YJ':
-            if int(dit) == 300:
-                svd_file = 'ZAPv2_SVD_{0}_n500004.fits'.format(obsband.upper())
-            elif int(dit) == 600:
+            if int(dit) == 600:
                 logger.warning("- Using 600s SVD file")
                 svd_file = 'ZAPv2_SVD_{0}_n9504_e600.fits'.format(obsband.upper())
+            else:
+                svd_file = 'ZAPv2_SVD_{0}_n500004.fits'.format(obsband.upper())
+            #if int(dit) == 300:
+            #    svd_file = 'ZAPv2_SVD_{0}_n500004.fits'.format(obsband.upper())
+            #elif int(dit) == 600:
+            #    logger.warning("- Using 600s SVD file")
+            #    svd_file = 'ZAPv2_SVD_{0}_n9504_e600.fits'.format(obsband.upper())
         else:
             svd_file = 'ZAPv2_SVD_{0}_n500004.fits'.format(obsband.upper())
 

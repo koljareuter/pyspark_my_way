@@ -111,6 +111,7 @@ if __name__ == "__main__":
         package_data={"": ["README.md", "LICENSE"],
                       "pyspark": ["data/superdark_coeffs_mean.fits.fz", 
                                   "data/superbad_60s.fits.fz",
+                                  "data/ZAPv2_SVD_IZ_n500004.fits",
                                   "data/ZAPv2_SVD_YJ_n500004.fits",
                                   "data/ZAPv2_SVD_H_n500004.fits",
                                   "data/ZAPv2_SVD_K_n500004.fits",

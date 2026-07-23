@@ -274,9 +274,9 @@ def get_obs_exposures(inputdir=None, subdir=None, obsband=None, prefix=None,
     #keep track of the expected number of name elements to identify correct frames
     expected_split = 6
     if prefix is None:
-        filepath = 'sci_reconstructed_KMOS'
+        filepath = 'SCI_RECONSTRUCTED_KMOS'
     else:
-        filepath = 'sci_reconstructed{0}_KMOS'.format('_{0}'.format(prefix))
+        filepath = 'SCI_RECONSTRUCTED{0}_KMOS'.format('_{0}'.format(prefix))
         expected_split += len(prefix.split('_'))
 
     if suffix is None:

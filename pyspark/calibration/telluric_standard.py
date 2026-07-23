@@ -40,7 +40,7 @@ def spark_standard(logger=None, subdir=None, obsband=None, **kwargs):
     stddir = os.path.join(kwargs['outputdir'], subdir, 'std')
 
     #fetch rotator angles and filled extensions from the master flat file
-    flat_file = fits.open(os.path.join(caldir, 'master_flat_{0}{0}{0}.fits'.format(obsband)))
+    flat_file = fits.open(os.path.join(caldir, 'MASTER_FLAT_{0}{0}{0}.fits'.format(obsband)))
     pro_naangles = get_cal_rotator(flat_file)
     nrot = len(pro_naangles)
     flat_file.close()
@@ -90,16 +90,16 @@ def spark_standard(logger=None, subdir=None, obsband=None, **kwargs):
                     ofile.write('{0} STD\n'.format(frame))
                     logger.debug('-- Added {0} STD'.format(frame))
 
-                ofile.write('{0}/illum_corr_{1}{1}{1}_{2:03}.fits ILLUM_CORR\n'.format(caldir, obsband.upper(), matched_rot))
-                logger.debug('-- Added {0}/illum_corr_{1}{1}{1}_{2:03}.fits ILLUM_CORR'.format(caldir, obsband.upper(), matched_rot))
-                ofile.write('{0}/master_flat_{1}{1}{1}.fits MASTER_FLAT\n'.format(caldir, obsband.upper()))
-                logger.debug('-- Added {0}/master_flat_{1}{1}{1}.fits MASTER_FLAT'.format(caldir, obsband.upper()))
-                ofile.write('{0}/xcal_{1}{1}{1}.fits XCAL\n'.format(caldir, obsband.upper()))
-                logger.debug('-- Added {0}/xcal_{1}{1}{1}.fits XCAL'.format(caldir, obsband.upper()))
-                ofile.write('{0}/ycal_{1}{1}{1}.fits YCAL\n'.format(caldir, obsband.upper()))
-                logger.debug('-- Added {0}/ycal_{1}{1}{1}.fits YCAL'.format(caldir, obsband.upper()))
-                ofile.write('{0}/lcal_{1}{1}{1}.fits LCAL\n'.format(caldir, obsband.upper()))
-                logger.debug('-- Added {0}/lcal_{1}{1}{1}.fits LCAL'.format(caldir, obsband.upper()))
+                ofile.write('{0}/ILLUM_CORR_{1}{1}{1}_{2:03}.fits ILLUM_CORR\n'.format(caldir, obsband.upper(), matched_rot))
+                logger.debug('-- Added {0}/ILLUM_CORR_{1}{1}{1}_{2:03}.fits ILLUM_CORR'.format(caldir, obsband.upper(), matched_rot))
+                ofile.write('{0}/MASTER_FLAT_{1}{1}{1}.fits MASTER_FLAT\n'.format(caldir, obsband.upper()))
+                logger.debug('-- Added {0}/MASTER_FLAT_{1}{1}{1}.fits MASTER_FLAT'.format(caldir, obsband.upper()))
+                ofile.write('{0}/XCAL_{1}{1}{1}.fits XCAL\n'.format(caldir, obsband.upper()))
+                logger.debug('-- Added {0}/XCAL_{1}{1}{1}.fits XCAL'.format(caldir, obsband.upper()))
+                ofile.write('{0}/YCAL_{1}{1}{1}.fits YCAL\n'.format(caldir, obsband.upper()))
+                logger.debug('-- Added {0}/YCAL_{1}{1}{1}.fits YCAL'.format(caldir, obsband.upper()))
+                ofile.write('{0}/LCAL_{1}{1}{1}.fits LCAL\n'.format(caldir, obsband.upper()))
+                logger.debug('-- Added {0}/LCAL_{1}{1}{1}.fits LCAL'.format(caldir, obsband.upper()))
                 ofile.write('{0}/kmos_wave_band.fits WAVE_BAND\n'.format(static_cal))
                 logger.debug('-- Added {0}/kmos_wave_band.fits WAVE_BAND'.format(static_cal))
                 ofile.write('{0}/kmos_spec_type.fits SPEC_TYPE_LOOKUP\n'.format(static_cal))
@@ -112,8 +112,8 @@ def spark_standard(logger=None, subdir=None, obsband=None, **kwargs):
             routine_args = '--no_noise --save_cubes=TRUE'
 
             #execute spark script
-            logger.debug('- Executing kmo_std_star')
-            ecode = run_spark('kmo_std_star', args=routine_args, sof=outfile, logger=logger)
+            logger.debug('- Executing kmos_std_star')
+            ecode = run_spark('kmos_std_star', args=routine_args, sof=outfile, logger=logger)
             logger.debug('-- Complete')
         
             #check the exit status of the SPARK call
@@ -121,8 +121,8 @@ def spark_standard(logger=None, subdir=None, obsband=None, **kwargs):
                 return 1
 
             #move files to their final location
-            products = ['telluric_{0}{0}{0}{1}.fits', 'star_spec_{0}{0}{0}{1}.fits', 'std_mask_{0}{0}{0}{1}.fits',
-                        'std_image_{0}{0}{0}{1}.fits', 'std_cube_{0}{0}{0}{1}.fits']
+            products = ['TELLURIC_{0}{0}{0}{1}.fits', 'STAR_SPEC_{0}{0}{0}{1}.fits', 'STD_MASK_{0}{0}{0}{1}.fits',
+                        'STD_IMAGE_{0}{0}{0}{1}.fits', 'STD_CUBE_{0}{0}{0}{1}.fits']
             for product in products:
                 clean_move(product.format(obsband.upper(),''), 
                            os.path.join(stddir, product.format('', base_out)))
@@ -214,11 +214,11 @@ def trace(cube, wave):
     npix = cube.shape[0]
     splits = factors(npix)
     use_split = splits[np.argmin(np.fabs(np.sqrt(npix)-splits))]
-    wave_splits = np.linspace(0,npix-1,use_split+1, dtype=np.int)
+    wave_splits = np.linspace(0,npix-1,use_split+1, dtype=int)
     wave_limits = [(wave[ii], wave[ii+1]) for ii in wave_splits[:-1]]
 
-    for low, high in wave_limits:
-
+#    for low, high in wave_limits:
+    return
 
     
 

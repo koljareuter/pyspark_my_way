@@ -24,10 +24,11 @@ def get_star_ifus(exposure, star_prefix=None):
     #names to identify stars.
 
     hdr = fits.getheader(exposure, ext=0)
-
+    print(star_prefix)
     star_arms = []
     for ifu in range(1,25):
         arm_name = hdr['HIERARCH ESO OCS ARM{0} NAME'.format(ifu)]
+        print(arm_name)
         if len([arm_name.find(star_string) for star_string in star_prefix if arm_name.find(star_string) >= 0]):
             star_arms.append(ifu)
     return star_arms
@@ -59,7 +60,7 @@ def get_star_params(logger=None, subdir=None, obsband=None,
         return 1
 
     # iterate over each exposure measuring star parameters
-    for exposure, _, _ in exposures:
+    for exposure, _, _, _ in exposures:
         fpath, fname = os.path.split(exposure)
 
         if logger is not None:
@@ -70,7 +71,7 @@ def get_star_params(logger=None, subdir=None, obsband=None,
 
         #fetch IFUs hosting stars
         star_ifus = get_star_ifus(exposure, star_prefix=star_prefix)
-
+        print(star_ifus)
         #get the correction for this pointing
         header = fits.getheader(exposure, ext=0)
         xoff = float(header['HIERARCH ESO OCS TARG DITHA'])/0.2

@@ -247,7 +247,7 @@ def reconstruct_wave(header):
     except:
         cdelt = header['CD3_3']
 
-    return (np.arange(zsize, dtype=np.float)+1 - crpix)*cdelt + crval
+    return (np.arange(zsize, dtype=float)+1 - crpix)*cdelt + crval
 
 
 def split_sex(coord):
@@ -302,13 +302,20 @@ def make_image(wl, data, noise, mask, llim=1.05, hlim=1.35):
             srt_ivar = 1./this_var[srt]
 
             #imean = bn.nanmedian(srt_data)
-            imean = bn.nansum(srt_data*srt_ivar)/bn.nansum(srt_ivar)
+            try:
+                imean = bn.nansum(srt_data*srt_ivar)/bn.nansum(srt_ivar)
+            except:
+                imean = 0.
+
             for iter in range(2):
                 dev = (srt_data-imean)**2
                 srt_iwt = np.copy(srt_ivar)
                 outlier = (np.sqrt(dev*srt_ivar) > 3.)
                 srt_iwt[outlier] = srt_ivar[outlier]/(1.+(dev*srt_ivar)[outlier])
-                imean = bn.nansum(srt_data*srt_iwt)/bn.nansum(srt_iwt) 
+                try:
+                    imean = bn.nansum(srt_data*srt_iwt)/bn.nansum(srt_iwt)
+                except:
+                    imean = 0.
             det_image[jj,kk] = np.copy(imean)
 
     det_image[~np.isfinite(det_image)] = 0.

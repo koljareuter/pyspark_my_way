@@ -36,7 +36,7 @@ def fit_psf(image):
     wts[0,:], wts[-1,:], wts[:,0], wts[:,-1] = 0., 0., 0., 0.
     ygrid, xgrid = np.mgrid[:ix, :iy]
 
-    res_total = np.zeros(4, dtype=np.float)
+    res_total = np.zeros(4, dtype=float)
     fparams = []
     fmodels = []
     icnt = 0

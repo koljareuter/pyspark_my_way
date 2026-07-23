@@ -41,19 +41,19 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
             logger.debug('-- Added {0} SCIENCE'.format(frame))
 
         #include additional files required for SPARK
-        ofile.write('{0} XCAL\n'.format(os.path.join(caldir, 'xcal_{0}{0}{0}.fits'.format(obsband.upper()))))
-        ofile.write('{0} YCAL\n'.format(os.path.join(caldir, 'ycal_{0}{0}{0}.fits'.format(obsband.upper()))))
-        ofile.write('{0} LCAL\n'.format(os.path.join(caldir, 'lcal_{0}{0}{0}.fits'.format(obsband.upper()))))
-        ofile.write('{0} MASTER_FLAT\n'.format(os.path.join(caldir, 'master_flat_{0}{0}{0}.fits'.format(obsband.upper()))))
+        ofile.write('{0} XCAL\n'.format(os.path.join(caldir, 'XCAL_{0}{0}{0}.fits'.format(obsband.upper()))))
+        ofile.write('{0} YCAL\n'.format(os.path.join(caldir, 'YCAL_{0}{0}{0}.fits'.format(obsband.upper()))))
+        ofile.write('{0} LCAL\n'.format(os.path.join(caldir, 'LCAL_{0}{0}{0}.fits'.format(obsband.upper()))))
+        ofile.write('{0} MASTER_FLAT\n'.format(os.path.join(caldir, 'MASTER_FLAT_{0}{0}{0}.fits'.format(obsband.upper()))))
         ofile.write('{0} WAVE_BAND\n'.format(os.path.join(static_cal, 'kmos_wave_band.fits')))
         if use_oh:
             ofile.write('{0} OH_SPEC\n'.format(os.path.join(static_cal, 'kmos_oh_spec_{0}.fits'.format(obsband.lower()))))
         
         if logger is not None:
-            logger.debug('-- Added {0} XCAL'.format(os.path.join(caldir, 'xcal_{0}{0}{0}.fits'.format(obsband.upper()))))
-            logger.debug('-- Added {0} YCAL'.format(os.path.join(caldir, 'ycal_{0}{0}{0}.fits'.format(obsband.upper()))))
-            logger.debug('-- Added {0} LCAL'.format(os.path.join(caldir, 'lcal_{0}{0}{0}.fits'.format(obsband.upper()))))
-            logger.debug('-- Added {0} MASTER_FLAT'.format(os.path.join(caldir, 'master_flat_{0}{0}{0}.fits'.format(obsband.upper()))))
+            logger.debug('-- Added {0} XCAL'.format(os.path.join(caldir, 'XCAL_{0}{0}{0}.fits'.format(obsband.upper()))))
+            logger.debug('-- Added {0} YCAL'.format(os.path.join(caldir, 'YCAL_{0}{0}{0}.fits'.format(obsband.upper()))))
+            logger.debug('-- Added {0} LCAL'.format(os.path.join(caldir, 'LCAL_{0}{0}{0}.fits'.format(obsband.upper()))))
+            logger.debug('-- Added {0} MASTER_FLAT'.format(os.path.join(caldir, 'MASTER_FLAT_{0}{0}{0}.fits'.format(obsband.upper()))))
             logger.debug('-- Added {0} WAVE_BAND'.format(os.path.join(static_cal, 'kmos_wave_band.fits')))
             if use_oh:
                 logger.debug('-- Added {0} OH_SPEC'.format(os.path.join(static_cal, 'kmos_oh_spec_{0}.fits'.format(obsband.lower()))))
@@ -66,7 +66,8 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
     if sky_method == 'spark':
         routine_args += '-no_subtract=FALSE -sky_tweak=TRUE '
     else:
-        routine_args += '-no_subtract=TRUE -sky_tweak=FALSE '
+        routine_args += '-no_subtract=TRUE -sky_tweak=FALSE -lcmethod=SLICES_MEDIAN '
+        #routine_args += '-no_subtract=TRUE -sky_tweak=FALSE -lcmethod=SLICES_MEDIAN -skip_sky_oh_align=TRUE '
 
     #never combine at this stage
     routine_args += '-no_combine=TRUE '
@@ -74,7 +75,7 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
     #execute spark script
     if logger is not None:
         logger.debug('- Executing reconstruction')
-    ecode = run_spark('kmo_sci_red', args=routine_args, sof=outfile, logger=logger)
+    ecode = run_spark('kmos_sci_red', args=routine_args, sof=outfile, logger=logger)
     if logger is not None:
         logger.debug('-- Complete')
 
@@ -85,7 +86,7 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
     #move output to their final locations
     hdr_keys = ['DATE', 'DATE-OBS', 'OBJECT', 'RA', 'DEC', 'MJD-OBS', 'UTC', 'LST']
     for frame, _ in frames:
-        frame_out = 'sci_reconstructed_{0}'.format(frame.split('/')[-1])
+        frame_out = 'SCI_RECONSTRUCTED_{0}'.format(frame.split('/')[-1])
 
         #patch the header keywords to match original file
         patch_header(frame_out, hdr_keys, frame)

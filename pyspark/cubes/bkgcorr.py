@@ -162,7 +162,7 @@ def bkg_correct_spec(logger=None, subdir=None, obsband=None,
                     dpct = mode_bkg-low
 
                     #make spectral mask
-                    mask = np.ones_like(bkg_image, dtype=np.int)
+                    mask = np.ones_like(bkg_image, dtype=int)
                     mask[bkg_image < mode_bkg-dpct] = 0
                     mask[bkg_image > mode_bkg+dpct] = 0
                     mask[0,:], mask[-1,:], mask[:,0], mask[:,-1] = 0, 0, 0, 0

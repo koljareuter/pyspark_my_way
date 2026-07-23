@@ -29,7 +29,7 @@ def make_interchannel_ref(logger=None, subdir=None, obsband=None, **kwargs):
     badpixel_mask = np.zeros((3,2048,2048), dtype=bool)
     with fits.open(os.path.join(caldir, 'badpixel_dark.fits')) as ffile:
         for detector in range(3):
-            tframe = np.array(ffile[detector+1].data, dtype=np.int)
+            tframe = np.array(ffile[detector+1].data, dtype=int)
             badpixel_mask[detector,:,:] = (tframe == 1)
 
     #fetch rotator angles and filled extensions from the master flat file
@@ -38,10 +38,10 @@ def make_interchannel_ref(logger=None, subdir=None, obsband=None, **kwargs):
 
     islice_mask = np.zeros((3,2048,2048), dtype=bool)
     for detector in range(3): #iterate over each detector
-        track_det = np.zeros((2048,2048), dtype=np.int)
+        track_det = np.zeros((2048,2048), dtype=int)
         for rotator in range(len(rotators)): #iterate over each rotator angle in the master flat
             findex = (2*detector)+1 + 6*rotator
-            dimage = np.array(flat_file[findex].data, dtype=np.float)
+            dimage = np.array(flat_file[findex].data, dtype=float)
             track_det += np.isnan(dimage)*1
 
         slice_mask = (track_det == len(rotators))
@@ -134,7 +134,7 @@ def generate_channel_cube(logger=None, subdir=None, obsband=None, **kwargs):
         for ichan in range(1):
 
             #make mock channel array
-            chan_array = np.ones((2048,2048), dtype=np.float) * 1e-5
+            chan_array = np.ones((2048,2048), dtype=float) * 1e-5
             chan_array[:,ichan*64:ichan*64+64] = 1.
             
             #write temporary .sof file to feed to

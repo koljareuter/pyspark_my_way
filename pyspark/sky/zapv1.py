@@ -55,7 +55,7 @@ __all__ = ['process', 'SVDoutput']
 
 # Limits of the segments in Angstroms
 SKYSEG_MUSE = [0, 5400, 5850, 6440, 6750, 7200, 7700, 8265, 8602, 8731, 9275, 10000]
-SKYFLAG_MUSE = np.zeros(len(SKYSEG_MUSE)-1, dtype=np.int)
+SKYFLAG_MUSE = np.zeros(len(SKYSEG_MUSE)-1, dtype=int)
 SKYSEG_KMOS = [0, 7800, 8240, 8730, 9260, 9640, 10140, 10670, 11250, 11960, 12450, \
         12890, 14000, 14720, 15650, 16000, 16356, 17253, 18400, 19570, 20950, 22000, 23500, 24600, 26000] 
 SKYFLAG_KMOS = [0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0]
@@ -272,7 +272,7 @@ def SVDoutput(cubefits=None, cube=None, hdr=None, stack=None, svdoutputfits='ZAP
 
     #mask used for rejection of spectral channels in continuum estimate (1 = bad)
     if contmask is None:
-        contmask = np.zeros(zobj.stack.shape[0], dtype=np.int)
+        contmask = np.zeros(zobj.stack.shape[0], dtype=int)
     elif contmask.shape[0] != zobj.stack.shape[0]:
         raise ValueError("Input spectra and continuum mask must have the same first dimension")
 
@@ -576,7 +576,7 @@ class zclass(object):
 
         #mask used for rejection of spectral channels in continuum estimate (1 = bad)
         if contmask is None:
-            contmask = np.zeros(self.stack.shape[0], dtype=np.int)
+            contmask = np.zeros(self.stack.shape[0], dtype=int)
         elif contmask.shape[0] != self.stack.shape[0]:
             raise ValueError("Input spectra and continuum mask must have the same first dimension")
 
