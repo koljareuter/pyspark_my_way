@@ -241,16 +241,15 @@ def spark_reconstruct_arc(logger=None, subdir=None, obsband=None, **kwargs):
 
     """ Reconstruct a single arc frame to use for resolution measurement.
     """
-    
     #path for the output calibration directory
     caldir = os.path.join(kwargs['outputdir'], subdir, 'calib')
     
     #fetch rotator angles and filled extensions from the master flat file
-    flat_file = fits.open(os.path.join(caldir, 'master_flat_{0}{0}{0}.fits'.format(obsband)))
+    flat_file = fits.open(os.path.join(caldir, 'MASTER_FLAT_{0}{0}{0}.fits'.format(obsband)))
     rot = get_cal_rotator(flat_file)[0]
     flat_file.close()
-    
-    logger.debug('- Processing frames at {0} deg rotation'.format(rot))
+
+    logger.info('- Processing frames at {0} deg rotation'.format(rot))
     frames = get_sof_list(filetype='arc', subdir=subdir, obsband=obsband, rotangle=rot, **kwargs)
 
     #write temporary .sof file to feed to
@@ -274,6 +273,7 @@ def spark_reconstruct_arc(logger=None, subdir=None, obsband=None, **kwargs):
         ofile.write('{0} WAVE_BAND\n'.format(os.path.join(static_cal, 'kmos_wave_band.fits')))
         logger.debug('--- Added {0} WAVE_BAND'.format(os.path.join(static_cal, 'kmos_wave_band.fits')))
 
+    
 
     #execute spark script
     logger.debug('-- Executing kmos_reconstruct')
@@ -285,8 +285,8 @@ def spark_reconstruct_arc(logger=None, subdir=None, obsband=None, **kwargs):
         return 1
 
     #move files to their final location
-    products = ['cube_arc.fits']
-    clean_move('cube_arc.fits', os.path.join(caldir, 'reconstructed_arc_{0}_{1}.fits'.format(obsband.lower(), subdir)))
+    products = ['CUBE_ARC.fits']
+    clean_move('CUBE_ARC.fits', os.path.join(caldir, 'reconstructed_arc_{0}_{1}.fits'.format(obsband.lower(), subdir)))
 
     #move the .sof file for logging
     clean_move(outfile, os.path.join(kwargs['outputdir'], subdir, 'sof', '{0}_reconstruct_arc_{1}.sof'\

@@ -213,6 +213,9 @@ def fix_detector_levels(frame_list, subdir=None, inputdir=None, outputdir=None, 
                     orig_header['history'] = 'Applied picture frame correction {0}'.format(get_date()) 
 
                 #update the data in place
+                total_correction = channel_array + picture_array + interslice_array
+                #print('total correction min/max', np.nanmin(total_correction), np.nanmax(total_correction))
+
                 fdata[det].data = orig_data - channel_array - picture_array - interslice_array
             
             fdata.flush()

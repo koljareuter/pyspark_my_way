@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-import subprocess
+import subprocess,copy
 import numpy as np
 import os, sys
 import time
@@ -131,6 +131,11 @@ def bb_lambda(wave, temp):
     temp_bb = (modeling.BlackBody(wave*u.micron, temp*u.K) * u.sr).to(u.watt / u.meter**2 / u.micron) / 1e-17
     return temp_bb
 
+def salva(cube, filename):
+    hdu0=fits.PrimaryHDU(data=cube)
+    hdul=fits.HDUList([hdu0])
+    hdul.writeto(filename,overwrite=True)
+    
 
 
 def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None, 
@@ -156,14 +161,12 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
             svd_file = 'ZAPv2_SVD_{0}_n500004.fits'.format(obsband.upper())
 
         fpath = fetch_resource_path('data/{0}'.format(svd_file))
-
         # copy object frame to output
         exp_sub = duplicate(obj_exp, outputdir=output_path, suffix=suffix) 
 
         if logger is not None:
             logger.info('- Subtracting sky for {0}'.format(obj_exp.split('/')[-1])) 
             logger.debug('-- Using {0} for initial subtraction'.format(sky_exp.split('/')[-1]))
-
         with fits.open(exp_sub, mode='update') as ofile, fits.open(sky_exp) as sfile:
 
             for ifu in range(1,25):
@@ -187,6 +190,7 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
                         if logger is not None:
                             logger.info('--- Removing thermal background from object and sky frames')
                         #reconstruct wavelength solution
+                        #print('ricostruisci')
                         wave = reconstruct_wave(header)
 
                         #extract 1D spectra from the un-sky-subtracted cubes
@@ -197,9 +201,9 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
                         sub_cube = np.copy(ocube) - np.copy(scube)
                     
                     nanmask = np.isfinite(sub_cube)
+                    nanmask2=copy.deepcopy(nanmask)
                     sub_cube[~nanmask] = 0.
-
-
+                    
                     zap_obj = process_v2('dummy', cube=sub_cube, hdr=header, clean=False, 
                                         zlevel='none', cftype='med_smooth', cfwidthSP=101, 
                                         extSVD=fpath, interactive=True, overwrite=True,
@@ -218,8 +222,7 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
 
                     #reincorporate residual continuum array
                     corr_cube = np.copy(zap_obj.cleancube+cleaner_obj.contarray.reshape(sub_cube.shape))
-                    corr_cube[~nanmask] = np.nan
-
+                    corr_cube[~nanmask2] = np.nan
                     ofile[ifu].data = np.asarray(corr_cube, dtype=np.float32)
 
 
@@ -300,7 +303,6 @@ def subtract_sky(logger=None, subdir=None, obsband=None,
     #get list of frames to process. Assumes location of un-sky-subtracted frames in "sky" directory
     exposures = get_obs_exposures(subdir=os.path.join(subdir, 'sky'), obsband=obsband, 
                                   suffix=search_suffix, **kwargs) 
-
     if not len(exposures):
         if logger is not None:
             logger.warning('-- No reconstructed frames found, skipping sky subtraction')
@@ -308,7 +310,7 @@ def subtract_sky(logger=None, subdir=None, obsband=None,
 
     #generate associated list of objects and skies
     obj_sky = match_obj_sky(exposures)
-   
+    #print(obj_sky)
     #only apply thermal background correction for k-band
     if tbsub and obsband == 'K':
         tbsub = True

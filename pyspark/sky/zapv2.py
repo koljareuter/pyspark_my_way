@@ -44,7 +44,7 @@ from astropy.wcs import WCS
 from astropy.stats import (sigma_clip, mad_std)
 
 from functools import wraps
-from multiprocessing import cpu_count, Manager, Process
+from multiprocessing import cpu_count, Manager, Process, freeze_support
 from scipy.stats import sigmaclip
 from time import time
 
@@ -53,7 +53,6 @@ from sklearn.decomposition import PCA
 from sklearn.decomposition._base import _BasePCA
 
 from ._zap_version import __version2__ as __version__
-
 
 __all__ = ['process', 'SVDoutput', 'nancleanfits', 'contsubfits', 'Zap',
            'wmedian']
@@ -87,7 +86,7 @@ CFTYPE_OPTIONS = ('weight', 'median', 'fit', 'none', 'med_smooth')
 
 # Number of available CPUs
 NCPU = cpu_count()
-
+NCPS = 1
 PY2 = sys.version_info[0] == 2
 ASTROPY_LT_1_3 = not minversion('astropy', '1.3')
 
@@ -201,6 +200,7 @@ def process(cubefits, cube=None, hdr=None, outcubefits='DATACUBE_ZAP.fits', clea
     zobj = Zap(cubefits, pca_class=pca_class, n_components=n_components,
                instrument=instrument, cube=cube, hdr=hdr, logger=logger,
                segment_sky=segment_sky)
+    
     zobj._run(clean=clean, zlevel=zlevel, cfwidth=cfwidthSP, cftype=cftype,
               nevals=nevals, extSVD=extSVD, boost=boost, contmask=contmask,
               reject_factor=reject_factor)
@@ -517,7 +517,6 @@ class Zap(object):
         # Check for consistency between weighted median and zlevel keywords
         if cftype == 'weight' and zlevel == 'none':
             raise ValueError('Weighted median requires a zlevel calculation')
-
         # clean up the nan values
         if clean:
             self._nanclean()
@@ -529,17 +528,17 @@ class Zap(object):
         # Extract the spectra that we will be working with
         # unless extracted stack is already provided
         if stack is None:
-            self._extract()
+           self._extract()
         else:
-            self.stack = stack
+           self.stack = stack
 
         # remove the median along the spectral axis
         if zlevel.lower() != 'none':
             if extzlevel is None:
                 self._zlevel(calctype=zlevel)
-            else: 
+            else:
                 self._externalzlevel(extzlevel)
-        
+                
         # handling rejection of spectral channels in continuum estimate (1=bad)
         if contmask is None:
             contmask = np.zeros(self.stack.shape[0], dtype=int)
@@ -549,7 +548,6 @@ class Zap(object):
         # remove the continuum level - this is multiprocessed to speed it up
         self._continuumfilter(cfwidth=cfwidth, cftype=cftype, boost=boost,
                               contmask=contmask, reject_factor=reject_factor)
-
         #flag deviant pixels in the continuum-cleaned spectra
         self._flag_pixels()
 
@@ -584,7 +582,6 @@ class Zap(object):
         else:
             self.models = self.readPCA(extSVD)
             self.flag_extSVD = True
-
         self.components = [m.components_.copy() for m in self.models]
 
         # choose some fraction of eigenspectra or some finite number of
@@ -736,7 +733,6 @@ class Zap(object):
             weight = np.abs(self.zlsky - (np.max(self.zlsky) + 1))
         elif cftype == 'med_smooth':
             mboost = boost
-
         # remove continuum features
         if cftype == 'none':
             self.normstack = self.stack.copy()
@@ -747,6 +743,7 @@ class Zap(object):
             # for reject_factor > 0, interpolate continuum for pixels with fewer
             # than reject_factor*cfwidth "good" pixels
             if contmask is not None and reject_factor > 0.0:
+
                 if contmask.shape[0] != self.stack.shape[0]:
                     raise ValueError("Input spectra and continuum mask must have the same first dimension")
 
@@ -766,7 +763,7 @@ class Zap(object):
  
             # check continuum against segment flags to avoid very broad features
             if any(self.franges):
-                for sflag, spix in zip(self.franges, self.cpranges):
+               for sflag, spix in zip(self.franges, self.cpranges):
                     if sflag:
                         parray = np.vstack((self.contarray[spix[0],:], self.contarray[spix[1],:]))
                         self.contarray[spix[0]:spix[1],:] = \
@@ -1134,7 +1131,7 @@ def parallel_map(func, arr, indices, logger=None, **kwargs):
     axis = kwargs.pop('axis', None)
     if isinstance(indices, (int, np.integer)) and indices == 1:
         return [func(0, arr, **kwargs)]
-
+    freeze_support()
     manager = Manager()
     out_q = manager.Queue()
     err_q = manager.Queue()
@@ -1189,6 +1186,7 @@ def _compute_deriv(arr, nsigma=5):
 
 
 def _continuumfilter(stack, cftype, weight=None, cfwidth=300, boost=None, logger=None):
+    freeze_support()
     if cftype == 'fit':
         x = np.arange(stack.shape[0])
         # Excluding the very red part for the fit. This is Muse-specific,

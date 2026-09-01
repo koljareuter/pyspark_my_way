@@ -47,8 +47,12 @@ def bkg_correct_2d(logger=None, subdir=None, obsband=None,
         exp_corr = duplicate(exposure, outputdir=fpath, suffix='bkg2d')
 
 	#define un-sky-subtracted exposure for line masking
-        exp_sky = os.path.join(sky_dir, "{0}.fits".format(fname[:42]))
-
+        exp_sky = os.path.join(sky_dir, "{0}.fits").format(fname[:-9])
+        #print(exp_sky)
+        #print(exposure)
+        #print(fname)
+        #print(fpath)
+        #print(exp_corr)
         with fits.open(exp_corr, mode='update') as ofile,\
                 fits.open(exp_sky) as sfile:
 

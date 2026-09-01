@@ -65,9 +65,11 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
     #sky method
     if sky_method == 'spark':
         routine_args += '-no_subtract=FALSE -sky_tweak=TRUE '
+    elif sky_method == 'edps':    
+         routine_args += '-no_subtract=FALSE -sky_tweak=TRUE -flux=TRUE -lcmethod=NONE -method=header -collapse_reconstructed=TRUE '
     else:
-        routine_args += '-no_subtract=TRUE -sky_tweak=FALSE -lcmethod=SLICES_MEDIAN '
-        #routine_args += '-no_subtract=TRUE -sky_tweak=FALSE -lcmethod=SLICES_MEDIAN -skip_sky_oh_align=TRUE '
+        #routine_args += '-no_subtract=TRUE -sky_tweak=FALSE -lcmethod=SLICES_MEDIAN '
+        routine_args += '-no_subtract=TRUE -sky_tweak=FALSE -lcmethod=SLICES_MEDIAN -skip_sky_oh_align=TRUE '
 
     #never combine at this stage
     routine_args += '-no_combine=TRUE '
@@ -87,12 +89,15 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
     hdr_keys = ['DATE', 'DATE-OBS', 'OBJECT', 'RA', 'DEC', 'MJD-OBS', 'UTC', 'LST']
     for frame, _ in frames:
         frame_out = 'SCI_RECONSTRUCTED_{0}'.format(frame.split('/')[-1])
-
-        #patch the header keywords to match original file
-        patch_header(frame_out, hdr_keys, frame)
-
-        #move the patched frame to the sky directory
-        clean_move(frame_out, os.path.join(kwargs['outputdir'], subdir, 'sky'))
+        frame_out2 = 'make_image_SCI_RECONSTRUCTED_{0}'.format(frame.split('/')[-1])
+        #if the file exist I copy it. 
+        if os.path.isfile(frame_out):
+           #patch the header keywords to match original file
+           patch_header(frame_out, hdr_keys, frame)
+           #move the patched frame to the sky directory
+           clean_move(frame_out, os.path.join(kwargs['outputdir'], subdir, 'sky'))
+        if os.path.isfile(frame_out2):   
+           clean_move(frame_out2, os.path.join(kwargs['outputdir'], subdir, 'sky'))
 
     #move the .sof file for logging
     clean_move(outfile, os.path.join(kwargs['outputdir'], subdir, 'sof', '{0}_cubes_{1}.sof'\

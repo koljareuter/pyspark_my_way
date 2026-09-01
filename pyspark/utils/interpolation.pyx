@@ -10,7 +10,7 @@ from libc.math cimport sin, floor, ceil, exp, pow, M_PI
 
 
 ctypedef np.float_t DTYPE_t
-ctypedef np.int_t iDTYPE_t
+ctypedef np.intp_t iDTYPE_t
 
 @cython.wraparound(False)
 @cython.boundscheck(False)

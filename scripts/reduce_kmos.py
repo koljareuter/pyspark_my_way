@@ -1,9 +1,10 @@
-#!/usr/local/bin/python
+#!/home/lcoccato/pyspark/env/bin/python
 from __future__ import print_function
 import numpy as np
 import os, sys
 import glob
 import argparse
+#######!/usr/local/bin/python
 
 from pyspark.utils import (fileutils, setuputils, obsutils)
 from pyspark.detector import fix_detector_levels
@@ -11,6 +12,9 @@ from pyspark.calibration import make_spark_calibs
 from pyspark.cubes import (reconstruct, velocity_correct, illuminate, bkg_correct_2d)
 from pyspark.sky import subtract_sky
 
+from multiprocessing import freeze_support#, set_start_method
+freeze_support()
+#set_start_method('spawn')
 
 def break_check(routine, logger):
     logger.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ')
@@ -22,34 +26,35 @@ def break_check(routine, logger):
     [os.remove(x) for x in glob.glob('*.sof')]
     
 
+if __name__ == "__main__":
+ #handle parsing of command line arguments
+ freeze_support()
+ parser = argparse.ArgumentParser()
+ parser.add_argument('-p', '--parameter_file', type=str, help='paramter file controlling reduction')
+ parser.add_argument('--verbose', type=int, default=3, help='Logging level for stdout')
+ args = parser.parse_args()
 
-#handle parsing of command line arguments
-parser = argparse.ArgumentParser()
-parser.add_argument('-p', '--parameter_file', type=str, help='paramter file controlling reduction')
-parser.add_argument('--verbose', type=int, default=3, help='Logging level for stdout')
-args = parser.parse_args()
+ param_file = args.parameter_file
+ verbosity = args.verbose
 
-param_file = args.parameter_file
-verbosity = args.verbose
-
-
-# --- initialize log for this reduction session ---
-master_logger = setuputils.set_logging(logbase='master', log_level=verbosity)
-
-
-# --- read input configuration file ------------------
-run_params = setuputils.set_config(param_file, logger=master_logger)
+ # --- initialize log for this reduction session ---
+ #master_logger = setuputils.set_logging(logbase='master', log_level=verbosity)
+ master_logger = setuputils.set_logging(logbase='master', log_level=3)
 
 
-#pull out information of interest for iteration
-rawdir = run_params['rawdir']
-procdir = run_params['procdir']
-folders = run_params['subdirs']
-bands = run_params['obsband']
+ # --- read input configuration file ------------------
+ run_params = setuputils.set_config(param_file, logger=master_logger)
 
 
-# --- start iterating over bands ------------------
-for band in bands:
+ #pull out information of interest for iteration
+ rawdir = run_params['rawdir']
+ procdir = run_params['procdir']
+ folders = run_params['subdirs']
+ bands = run_params['obsband']
+
+
+ # --- start iterating over bands ------------------
+ for band in bands:
     master_logger.info('######## Processing {0}-band observations ########'.format(band))
 
     #iterate over folders
@@ -84,15 +89,15 @@ for band in bands:
             continue
         master_logger.info('-- Finished calibrations')
         master_logger.info(' ')
-
-
+   
+   
         # -- detector corrections ----------------
         master_logger.info('- Running detector corrections')
         
         #get list of obs frames
         frames = fileutils.get_sof_list(filetype='science', subdir=folder, 
                 inputdir=rawdir, obsband=band)
-
+   
         #apply detector fix(es)
         if run_params['detector']['channel_correct'] or \
            run_params['detector']['picture_correct'] or \
@@ -101,17 +106,18 @@ for band in bands:
                 fix_detector_levels([frame for frame, type in frames], subdir=folder, 
                         logger=dir_logger, **run_params['detector'])
             except:
+                print('----detector correction failed')
                 break_check('Det. correction', master_logger)
                 continue
             else:
                 master_logger.info('-- Finished detector corrections')
                 master_logger.info(' ')
         else:
-            master_logger.info('-- Finished detector corrections')
+            master_logger.info('-- Detector corrections skipped')
             master_logger.info(' ')
-
-
-
+   
+   
+   
         # -- reconstruct -----------------------
         master_logger.info('- Running reconstruction')
         ecode = reconstruct(logger=dir_logger, subdir=folder, obsband=band, 
@@ -121,19 +127,19 @@ for band in bands:
             continue
         master_logger.info('-- Finished reconstruction')
         master_logger.info(' ')
-
-
+  
+  
         # -- sky subtraction -------------------
         master_logger.info('- Running sky subtraction')
-        ecode = subtract_sky(logger=dir_logger, subdir=folder, obsband=band, 
+        ecode = subtract_sky(logger=dir_logger, subdir=folder, obsband=band,
                              **run_params['cubes'])
         if ecode:
             break_check('sky_subtraction', master_logger)
             continue
         master_logger.info('-- Finished sky subtraction')
         master_logger.info(' ')
-
-
+  
+   
         # -- illumination correction -----------
         master_logger.info('- Applying illumination correction')
         ecode = illuminate(logger=dir_logger, subdir=folder, obsband=band, 
@@ -143,8 +149,8 @@ for band in bands:
             continue
         master_logger.info('-- Finished illumination correction')
         master_logger.info(' ')
-
-
+  
+  
         # -- global background correction
         master_logger.info('- Applying global background correction')
         ecode = bkg_correct_2d(logger=dir_logger, subdir=folder, obsband=band,
@@ -154,8 +160,8 @@ for band in bands:
             continue
         master_logger.info('-- Finished background correction')
         master_logger.info(' ')
-
-
+    
+  
         # -- barycentric velocity correction -----
         master_logger.info('- Applying heliocentric correction')
         ecode = velocity_correct(logger=dir_logger, subdir=folder, obsband=band, 
@@ -165,6 +171,8 @@ for band in bands:
             continue
         master_logger.info('-- Finished heliocentric correction')
         master_logger.info(' ')
- 
+   
         
         master_logger.info('- Finished reducing {0} '.format(folder))
+  
+  

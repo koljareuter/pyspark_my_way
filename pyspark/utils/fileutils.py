@@ -124,7 +124,10 @@ def get_sof_list(filetype=None, subdir=None, inputdir=None, obsband=None,
         filepath = 'KMOS'
     else:
         filepath = '{0}_KMOS'.format(prefix)
-    dfits_string = 'dfits '+filepath+'*{0}*.fits | fitsort tpl.id dpr.type ins.filt1.id det.seq1.dit ocs.rot.naangle date-obs obs.start obs.targ.name | tail -n +2'
+   
+    
+#    dfits_string = 'dfits '+filepath+'*{0}*.fits | fitsort tpl.id dpr.type ins.filt1.id det.seq1.dit ocs.rot.naangle date-obs obs.start obs.targ.name | tail -n +2 '
+    dfits_string = 'dfits '+filepath+'*.fits | fitsort tpl.id dpr.type ins.filt1.id det.seq1.dit ocs.rot.naangle date-obs obs.start obs.targ.name | grep {0}  '
 
     sof_out = []
    
@@ -133,8 +136,9 @@ def get_sof_list(filetype=None, subdir=None, inputdir=None, obsband=None,
         block_init = []
         flat_exp = []
         with cd(fpath):
-            p = subprocess.Popen(dfits_string.format('CAL'), stdout=subprocess.PIPE, bufsize=1, shell=True)
-            for line in iter(p.stdout.readline, b''):
+            #p = subprocess.Popen(dfits_string.format('CAL'), stdout=subprocess.PIPE, bufsize=1, shell=True)
+            p = subprocess.Popen(dfits_string.format('FLAT'), stdout=subprocess.PIPE, bufsize=-1, shell=True)
+            for line in iter(p.stdout.readline, b''):  
                 sline = line.decode('utf-8').strip().split(None)
                 if sline[1] == 'KMOS_spec_cal_calunitflat' and sline[3].upper() in [obsband.upper(), 'BLOCK']:
                     if rotangle is None:
@@ -158,7 +162,6 @@ def get_sof_list(filetype=None, subdir=None, inputdir=None, obsband=None,
         flat_exp = np.unique(flat_exp)
         if len(flat_exp) > 1:
             return 1
-
         for dframe, dtype, dexp in block_init:
             if dexp == flat_exp:
                 sof_out.append((dframe, dtype,))
@@ -168,10 +171,11 @@ def get_sof_list(filetype=None, subdir=None, inputdir=None, obsband=None,
         block_init = []
         arc_exp = []
         with cd(fpath):
-            p = subprocess.Popen(dfits_string.format('CAL'), stdout=subprocess.PIPE, bufsize=1, shell=True)
+#            p = subprocess.Popen(dfits_string.format('CAL'), stdout=subprocess.PIPE, bufsize=1, shell=True)
+            p = subprocess.Popen(dfits_string.format('WAVE'), stdout=subprocess.PIPE, bufsize=-1, shell=True)
             for line in iter(p.stdout.readline, b''):
-                sline = line.decode('utf-8').strip().split(None)
-                if sline[1] == 'KMOS_spec_cal_wave' and sline[3].upper() in [obsband.upper(), 'BLOCK']:
+               sline = line.decode('utf-8').strip().split(None)
+               if sline[1] == 'KMOS_spec_cal_wave' and sline[3].upper() in [obsband.upper(), 'BLOCK']:
                     if rotangle is None:
                         if sline[2] == 'WAVE,OFF':
                             block_init.append((os.path.join(fpath, sline[0]), sline[2], float(sline[4])))
@@ -207,7 +211,8 @@ def get_sof_list(filetype=None, subdir=None, inputdir=None, obsband=None,
         # first pass: identify darks and group by exposure time
         store_darks = {}
         with cd(fpath):
-            p = subprocess.Popen(dfits_string.format('DARK'), stdout=subprocess.PIPE, bufsize=1, shell=True)
+#            p = subprocess.Popen(dfits_string.format('DARK'), stdout=subprocess.PIPE, bufsize=1, shell=True)
+            p = subprocess.Popen(dfits_string.format('DARK'), stdout=subprocess.PIPE, bufsize=-1, shell=True)
             for line in iter(p.stdout.readline, b''):
                 sline = line.decode('utf-8').strip().split(None)
                 store_darks.setdefault(int(float(sline[4])), []).append((os.path.join(fpath, sline[0]),None))
@@ -236,7 +241,8 @@ def get_sof_list(filetype=None, subdir=None, inputdir=None, obsband=None,
     # --- Standard star exposures --- 
     elif filetype.lower() == 'standard':
         with cd(fpath):
-            p = subprocess.Popen(dfits_string.format('CAL'), stdout=subprocess.PIPE, bufsize=1, shell=True)
+#            p = subprocess.Popen(dfits_string.format('CAL'), stdout=subprocess.PIPE, bufsize=1, shell=True)
+            p = subprocess.Popen(dfits_string.format('CAL'), stdout=subprocess.PIPE, bufsize=-1, shell=True)
             for line in iter(p.stdout.readline, b''):
                 sline = line.decode('utf-8').strip().split(None)
                 if obsband is not None:
@@ -250,8 +256,13 @@ def get_sof_list(filetype=None, subdir=None, inputdir=None, obsband=None,
 
     # --- Science exposures --- 
     elif filetype.lower() == 'science':
-        with cd(fpath):
-            p = subprocess.Popen(dfits_string.format('OBS'), stdout=subprocess.PIPE, bufsize=1, shell=True)
+        #print('OK') 
+        #with open("/home/lcoccato/pyspark/pyspark/scripts/tmp.txt", "a+") as f:
+        #f.write('speriam bene')
+            
+         with cd(fpath):
+#            p = subprocess.Popen(dfits_string.format('OBJECT,SKY'), stdout=subprocess.PIPE, bufsize=1, shell=True)
+            p = subprocess.Popen(dfits_string.format('OBJECT,SKY'), stdout=subprocess.PIPE, bufsize=-1, shell=True)
             for line in iter(p.stdout.readline, b''):
                 sline = line.decode('utf-8').strip().split(None)
                 if sline[2] == 'OBJECT,SKY' and sline[3] == obsband.upper():
@@ -259,7 +270,7 @@ def get_sof_list(filetype=None, subdir=None, inputdir=None, obsband=None,
             p.wait()
 
     return sof_out
-
+ 
 
 def get_obs_exposures(inputdir=None, subdir=None, obsband=None, prefix=None, 
 		      suffix=None, **kwargs):
@@ -272,27 +283,36 @@ def get_obs_exposures(inputdir=None, subdir=None, obsband=None, prefix=None,
         fpath = inputdir
 
     #keep track of the expected number of name elements to identify correct frames
-    expected_split = 6
+    #print(prefix, suffix)
     if prefix is None:
+        expected_split = 2
         filepath = 'SCI_RECONSTRUCTED_KMOS'
+        #print('1 expected: ',str(expected_split))
     else:
+        expected_split = 3
         filepath = 'SCI_RECONSTRUCTED{0}_KMOS'.format('_{0}'.format(prefix))
         expected_split += len(prefix.split('_'))
+        #print('2 expected: ',str(expected_split))
 
     if suffix is None:
         dfits_string = 'dfits '+filepath+'*.fits | fitsort date-obs ins.grat1.id det.seq1.dit ocs.arm1.name ocs.arm2.name ocs.arm3.name | tail -n +2'
+        #print('3 expected: ',str(expected_split))
     else:
         dfits_string = 'dfits '+filepath+'*{0}.fits | fitsort date-obs ins.grat1.id det.seq1.dit ocs.arm1.name ocs.arm2.name ocs.arm3.name | tail -n +2'.format('_{0}'.format(suffix))
+        #dfits_string = 'dfits '+filepath+'*.fits | fitsort date-obs ins.grat1.id det.seq1.dit ocs.arm1.name ocs.arm2.name ocs.arm3.name | tail -n +2'#.format('_{0}'.format(suffix))
         expected_split += len(suffix.split('_'))
-    
+        #print('4 expected: ',str(expected_split))
+
     # run the query, sort things into object and sky
     # we actually temporarily change directories here
     # to deal with the length limit imposed by dfits
     exposures = []
     with cd(fpath):
-        p = subprocess.Popen(dfits_string, stdout=subprocess.PIPE, bufsize=1, shell=True)
+        #p = subprocess.Popen(dfits_string, stdout=subprocess.PIPE, bufsize=1, shell=True)
+        p = subprocess.Popen(dfits_string, stdout=subprocess.PIPE, bufsize=-1, shell=True)
         for line in iter(p.stdout.readline, b''):
             sline = line.decode('utf-8').strip().split(None)
+            #print(os.path.split(sline[0])[1].split('_'), len(os.path.split(sline[0])[1].split('_')), expected_split)
             if len(os.path.split(sline[0])[1].split('_')) == expected_split:
                 if all([True if ent not in ['ARM1_SKY','ARM2_SKY','ARM3_SKY'] else False
                         for ent in sline[-3:]]) and sline[2] == obsband:

@@ -1,0 +1,38 @@
+31/08/2026 12:38:32 [DEBUG   ]: # --- configuration settings --- #
+31/08/2026 12:38:32 [DEBUG   ]: [instrument]
+31/08/2026 12:38:32 [DEBUG   ]:  obsband = K
+31/08/2026 12:38:32 [DEBUG   ]: [pathing]
+31/08/2026 12:38:32 [DEBUG   ]:  rawdir = /mnt/c/Users/kolja/kmos_data
+31/08/2026 12:38:32 [DEBUG   ]:  procdir = /mnt/c/Users/kolja/kmos_data_proc
+31/08/2026 12:38:32 [DEBUG   ]:  subdirs = 2013-06-30
+31/08/2026 12:38:32 [DEBUG   ]: [detector]
+31/08/2026 12:38:32 [DEBUG   ]:  channel_correct = True
+31/08/2026 12:38:32 [DEBUG   ]:  picture_correct = True
+31/08/2026 12:38:32 [DEBUG   ]:  prefix = dc
+31/08/2026 12:38:32 [DEBUG   ]: [calibration]
+31/08/2026 12:38:32 [DEBUG   ]:  make_dark = False
+31/08/2026 12:38:32 [DEBUG   ]:  make_flat = False
+31/08/2026 12:38:32 [DEBUG   ]:  make_arc = False
+31/08/2026 12:38:32 [DEBUG   ]:  make_illum = True
+31/08/2026 12:38:32 [DEBUG   ]:  reconstruct_arc = True
+31/08/2026 12:38:32 [DEBUG   ]:  make_standard = True
+31/08/2026 12:38:32 [DEBUG   ]:  darkexp = 300
+31/08/2026 12:38:32 [DEBUG   ]: [cubes]
+31/08/2026 12:38:32 [DEBUG   ]:  reconstruct_cubes = True
+31/08/2026 12:38:32 [DEBUG   ]:  sky_method = zapv2
+31/08/2026 12:38:32 [DEBUG   ]:  rvcorr = True
+31/08/2026 12:38:32 [DEBUG   ]:  use_oh = True
+31/08/2026 12:38:32 [DEBUG   ]:  illum_corr = True
+31/08/2026 12:38:32 [DEBUG   ]:  bkg_corr = True
+31/08/2026 12:38:32 [DEBUG   ]:  get_star_params = False
+31/08/2026 12:38:32 [DEBUG   ]:  star_prefix = None
+31/08/2026 12:38:32 [DEBUG   ]: # --- configuration settings --- #
+31/08/2026 12:38:32 [DEBUG   ]:  
+31/08/2026 12:38:32 [INFO    ]: ######## Processing K-band observations ########
+31/08/2026 12:38:40 [INFO    ]: Reducing 2013-06-30 
+31/08/2026 12:38:40 [INFO    ]: - Creating new log file 2013-06-30/kolja_K_2026-31-08_12h38m40.log
+31/08/2026 12:38:40 [INFO    ]: - Running calibrations
+31/08/2026 12:38:50 [ERROR   ]: !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+31/08/2026 12:38:50 [ERROR   ]: !!!! An error occured during kmos_illumination, check the log
+31/08/2026 12:38:50 [ERROR   ]: !!!! Moving on to next night
+31/08/2026 12:38:50 [ERROR   ]: !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 

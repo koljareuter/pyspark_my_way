@@ -7,6 +7,8 @@ import os
 import scipy.ndimage as nd
 
 from astropy.io import fits
+from multiprocessing import freeze_support#, set_start_method
+freeze_support()
 
 __all__ = ["nanMAD", "hl_diff", "hsm", "read_cube", "match_obs_rotator",
            "get_cal_rotator", "get_obs_extensions", "run_spark", "find_lines",
@@ -174,7 +176,8 @@ def run_spark(routine, args='', sof=None, logger=None):
     if logger is not None: 
         logger.debug('- Executing command: {0}'.format(cmd))
     
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, bufsize=1, shell=True)
+#    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, bufsize=1, shell=True)
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, bufsize=-1, shell=True)
     for line in iter(p.stdout.readline, b''):
         if logger is not None:
             logger.debug(line.decode('utf-8').strip())

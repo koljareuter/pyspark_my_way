@@ -1,0 +1,38 @@
+31/08/2026 12:25:59 [DEBUG   ]: # --- configuration settings --- #
+31/08/2026 12:25:59 [DEBUG   ]: [instrument]
+31/08/2026 12:25:59 [DEBUG   ]:  obsband = K
+31/08/2026 12:25:59 [DEBUG   ]: [pathing]
+31/08/2026 12:25:59 [DEBUG   ]:  rawdir = /mnt/c/Users/kolja/kmos_data
+31/08/2026 12:25:59 [DEBUG   ]:  procdir = /mnt/c/Users/kolja/kmos_data_proc
+31/08/2026 12:25:59 [DEBUG   ]:  subdirs = 2013-06-30
+31/08/2026 12:25:59 [DEBUG   ]: [detector]
+31/08/2026 12:25:59 [DEBUG   ]:  channel_correct = True
+31/08/2026 12:25:59 [DEBUG   ]:  picture_correct = True
+31/08/2026 12:25:59 [DEBUG   ]:  prefix = dc
+31/08/2026 12:25:59 [DEBUG   ]: [calibration]
+31/08/2026 12:25:59 [DEBUG   ]:  make_dark = True
+31/08/2026 12:25:59 [DEBUG   ]:  make_flat = True
+31/08/2026 12:25:59 [DEBUG   ]:  make_arc = True
+31/08/2026 12:25:59 [DEBUG   ]:  make_illum = True
+31/08/2026 12:25:59 [DEBUG   ]:  reconstruct_arc = True
+31/08/2026 12:25:59 [DEBUG   ]:  make_standard = True
+31/08/2026 12:25:59 [DEBUG   ]:  darkexp = 300
+31/08/2026 12:25:59 [DEBUG   ]: [cubes]
+31/08/2026 12:25:59 [DEBUG   ]:  reconstruct_cubes = True
+31/08/2026 12:25:59 [DEBUG   ]:  sky_method = zapv2
+31/08/2026 12:25:59 [DEBUG   ]:  rvcorr = True
+31/08/2026 12:25:59 [DEBUG   ]:  use_oh = True
+31/08/2026 12:25:59 [DEBUG   ]:  illum_corr = True
+31/08/2026 12:25:59 [DEBUG   ]:  bkg_corr = True
+31/08/2026 12:25:59 [DEBUG   ]:  get_star_params = False
+31/08/2026 12:25:59 [DEBUG   ]:  star_prefix = None
+31/08/2026 12:25:59 [DEBUG   ]: # --- configuration settings --- #
+31/08/2026 12:25:59 [DEBUG   ]:  
+31/08/2026 12:25:59 [INFO    ]: ######## Processing K-band observations ########
+31/08/2026 12:26:10 [INFO    ]: Reducing 2013-06-30 
+31/08/2026 12:26:10 [INFO    ]: - Creating new log file 2013-06-30/kolja_K_2026-31-08_12h26m10.log
+31/08/2026 12:26:10 [INFO    ]: - Running calibrations
+31/08/2026 12:37:46 [ERROR   ]: !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+31/08/2026 12:37:46 [ERROR   ]: !!!! An error occured during kmos_wave_cal, check the log
+31/08/2026 12:37:46 [ERROR   ]: !!!! Moving on to next night
+31/08/2026 12:37:46 [ERROR   ]: !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
