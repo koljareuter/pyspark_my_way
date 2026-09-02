@@ -128,7 +128,7 @@ def bb_lambda(wave, temp):
     #generate blackbody spectrum given temperature.  In case we ever need it,
     #put it in physical units (similar to the calibrated spectrum)
     #temp_bb = (blackbody_lambda(wave*u.micron, temp) * u.sr).to(u.watt / u.meter**2 / u.micron) / 1e-17
-    temp_bb = (modeling.BlackBody(wave*u.micron, temp*u.K) * u.sr).to(u.watt / u.meter**2 / u.micron) / 1e-17
+    temp_bb = (models.BlackBody(wave*u.micron, temp*u.K) * u.sr).to(u.watt / u.meter**2 / u.micron) / 1e-17
     return temp_bb
 
 def salva(cube, filename):
