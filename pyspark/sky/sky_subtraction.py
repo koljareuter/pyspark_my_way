@@ -129,7 +129,7 @@ def bb_lambda(wave, temp):
     #put it in physical units (similar to the calibrated spectrum)
     #temp_bb = (blackbody_lambda(wave*u.micron, temp) * u.sr).to(u.watt / u.meter**2 / u.micron) / 1e-17
     bb = models.BlackBody(temperature=temp*u.K)
-    temp_bb = (bb(wave*u.micron) * u.sr).to(u.watt / u.meter**2 / u.micron) / 1e-17
+    temp_bb = (bb(wave*u.micron) * u.sr).to(u.watt / u.meter**2 / u.micron, equivalencies=u.spectral_density(wave*u.micron)) / 1e-17
     return temp_bb
 
 def salva(cube, filename):
