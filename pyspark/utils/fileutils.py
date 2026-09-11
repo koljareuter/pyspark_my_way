@@ -272,7 +272,7 @@ def get_sof_list(filetype=None, subdir=None, inputdir=None, obsband=None,
     return sof_out
  
 
-def get_obs_exposures(inputdir=None, subdir=None, obsband=None, prefix=None, 
+def get_obs_exposures(inputdir=None, subdir=None, obsband=None, prefix=None,
 		      suffix=None, **kwargs):
     """ Get list of reconstructed frames (assumes file naming convention from
     kmo_reconstruct, i.e. sci_reconstructed_***.fits.

@@ -15,7 +15,8 @@ static_cal = os.environ['KMOS_CALIB']
 
 
 def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
-                combine=False, reconstruct_cubes=True, use_oh=True, **kwargs):
+                combine=False, reconstruct_cubes=True, use_oh=True,
+                telluric_in_sof=False, **kwargs):
 
     """ Reconstruct science cubes using spark
     """
@@ -48,7 +49,16 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
         ofile.write('{0} WAVE_BAND\n'.format(os.path.join(static_cal, 'kmos_wave_band.fits')))
         if use_oh:
             ofile.write('{0} OH_SPEC\n'.format(os.path.join(static_cal, 'kmos_oh_spec_{0}.fits'.format(obsband.lower()))))
-        
+        if telluric_in_sof:
+            tel_matches = glob.glob(os.path.join(kwargs['inputdir'], subdir, '*TELLURIC*'))
+            if tel_matches:
+                ofile.write('{0} TELLURIC\n'.format(tel_matches[0]))
+                if logger is not None:
+                    logger.debug('-- Added {0} TELLURIC'.format(tel_matches[0]))
+            elif logger is not None:
+                logger.warning('-- telluric_in_sof=True but no TELLURIC file found in {0}'.format(
+                    os.path.join(kwargs['inputdir'], subdir)))
+
         if logger is not None:
             logger.debug('-- Added {0} XCAL'.format(os.path.join(caldir, 'XCAL_{0}{0}{0}.fits'.format(obsband.upper()))))
             logger.debug('-- Added {0} YCAL'.format(os.path.join(caldir, 'YCAL_{0}{0}{0}.fits'.format(obsband.upper()))))

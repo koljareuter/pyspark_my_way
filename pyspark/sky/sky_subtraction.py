@@ -23,7 +23,7 @@ from ..utils.obsutils import (find_lines, hsm, reconstruct_wave)
 from ..utils.fileutils import (fetch_resource_path, duplicate, get_obs_exposures)
 
 
-__all__ = ["subtract_sky", "match_obj_sky", "make_SVDs_v2"]
+__all__ = ["subtract_sky", "match_obj_sky", "make_SVDs_v2", "build_custom_svd"]
 
 sky_methods = ['zapv1', 'zapv2']
 
@@ -70,6 +70,59 @@ def make_SVDs_v2(spec_array, header, pcaoutfits=None, zlevel='none', cftype='med
 
     if pcaoutfits is not None:
         zap_inst.writePCA(pcaoutputfits=pcaoutfits, overwrite=True)
+
+
+def build_custom_svd(subdir=None, inputdir=None, obsband=None, pcaoutfits=None,
+                     logger=None, **kwargs):
+    """ Build a ZAPv2 eigenbasis (SVD) from this dataset's own SKY exposures,
+    instead of using the generic bundled ZAPv2_SVD_*.fits file. Pools every
+    spaxel's spectrum from every SKY-type exposure of `subdir`/`obsband`
+    across all 24 IFUs, then hands that stack to make_SVDs_v2.
+
+    Run this once per band before reduce_kmos.py, then point zap_sky_v2 at
+    the result via svd_path=<pcaoutfits> (e.g. by setting svd_path in the
+    [cubes] section of the .cfg -- subtract_sky forwards **kwargs straight
+    through to zap_sky_v2).
+    """
+    exposures = get_obs_exposures(subdir=os.path.join(subdir, 'sky'), obsband=obsband, inputdir=inputdir, **kwargs)
+    sky_exposures = [efile for efile, etype, _, _ in exposures if etype == 'SKY']
+    if not len(sky_exposures):
+        if logger is not None:
+            logger.warning('-- No SKY exposures found for {0}, cannot build custom SVD'.format(subdir))
+        return None
+
+    spectra, header = [], None
+    for sky_exp in sky_exposures:
+        with fits.open(sky_exp) as sfile:
+            for ifu in range(1, 25):
+                cube = np.array(sfile[ifu].data)
+                if cube.ndim != 3:
+                    continue
+                if header is None:
+                    header = sfile[ifu].header
+                flat = cube.reshape(cube.shape[0], -1)
+                # spaxels routinely have a few NaN samples near the edge of
+                # their own valid-wavelength coverage (see CUBE_EDGE_MARGIN
+                # in telluric_check.ipynb) -- requiring every pixel finite
+                # throws away nearly everything. Keep spaxels that are
+                # mostly finite and zero-fill the small remaining gaps.
+                finite_frac = np.isfinite(flat).mean(axis=0)
+                usable = flat[:, finite_frac >= 0.9]
+                if usable.size:
+                    spectra.append(np.where(np.isfinite(usable), usable, 0.0))
+
+    if not spectra:
+        if logger is not None:
+            logger.warning('-- No finite sky spectra found for {0}, cannot build custom SVD'.format(subdir))
+        return None
+
+    spec_array = np.concatenate(spectra, axis=1)
+    if logger is not None:
+        logger.info('- Building custom SVD from {0} sky spaxel spectra across {1} exposure(s)'.format(
+            spec_array.shape[1], len(sky_exposures)))
+
+    make_SVDs_v2(spec_array, header, pcaoutfits=pcaoutfits, logger=logger)
+    return pcaoutfits
 
 
 def sub_thermal(wave, cube, mask):
@@ -139,29 +192,38 @@ def salva(cube, filename):
     
 
 
-def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None, 
-            inputdir=None, suffix='s', tbsub=False, **kwargs):
+def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
+            inputdir=None, suffix='s', tbsub=False, svd_path=None, **kwargs):
 
     for obj_exp, sky_exp, dit in matched_exposures:
         input_path = os.path.split(obj_exp)[0]
         output_path = os.path.join(inputdir, subdir, 'science')
 
-        #fetch the superdark reference frame for this detector
-        if obsband.upper() == 'YJ':
-            if int(dit) == 600:
-                logger.warning("- Using 600s SVD file")
-                svd_file = 'ZAPv2_SVD_{0}_n9504_e600.fits'.format(obsband.upper())
+        if svd_path is not None:
+            # use a dataset-specific eigenbasis (see build_custom_svd below)
+            # instead of the generic bundled one -- its OH-line residual
+            # structure matches this run's own sky frames, not whatever
+            # dataset ZAPv2_SVD_*_n500004.fits was originally built from.
+            if logger is not None:
+                logger.info('- Using custom SVD file {0}'.format(svd_path))
+            fpath = svd_path
+        else:
+            #fetch the superdark reference frame for this detector
+            if obsband.upper() == 'YJ':
+                if int(dit) == 600:
+                    logger.warning("- Using 600s SVD file")
+                    svd_file = 'ZAPv2_SVD_{0}_n9504_e600.fits'.format(obsband.upper())
+                else:
+                    svd_file = 'ZAPv2_SVD_{0}_n500004.fits'.format(obsband.upper())
+                #if int(dit) == 300:
+                #    svd_file = 'ZAPv2_SVD_{0}_n500004.fits'.format(obsband.upper())
+                #elif int(dit) == 600:
+                #    logger.warning("- Using 600s SVD file")
+                #    svd_file = 'ZAPv2_SVD_{0}_n9504_e600.fits'.format(obsband.upper())
             else:
                 svd_file = 'ZAPv2_SVD_{0}_n500004.fits'.format(obsband.upper())
-            #if int(dit) == 300:
-            #    svd_file = 'ZAPv2_SVD_{0}_n500004.fits'.format(obsband.upper())
-            #elif int(dit) == 600:
-            #    logger.warning("- Using 600s SVD file")
-            #    svd_file = 'ZAPv2_SVD_{0}_n9504_e600.fits'.format(obsband.upper())
-        else:
-            svd_file = 'ZAPv2_SVD_{0}_n500004.fits'.format(obsband.upper())
 
-        fpath = fetch_resource_path('data/{0}'.format(svd_file))
+            fpath = fetch_resource_path('data/{0}'.format(svd_file))
         # copy object frame to output
         exp_sub = duplicate(obj_exp, outputdir=output_path, suffix=suffix) 
 
@@ -205,8 +267,8 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
                     nanmask2=copy.deepcopy(nanmask)
                     sub_cube[~nanmask] = 0.
                     
-                    zap_obj = process_v2('dummy', cube=sub_cube, hdr=header, clean=False, 
-                                        zlevel='none', cftype='med_smooth', cfwidthSP=101, 
+                    zap_obj = process_v2('dummy', cube=sub_cube, hdr=header, clean=True,
+                                        zlevel='none', cftype='med_smooth', cfwidthSP=101,
                                         extSVD=fpath, interactive=True, overwrite=True,
                                         instrument='KMOS', boost=50, contmask=msky,
                                         reject_factor=0.4, logger=logger)
@@ -217,7 +279,7 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
 
                     cleaner_obj = ZapObj_v2('dummy', pca_class=None, n_components=None, instrument='KMOS',
                                             cube=zap_obj.recon.reshape(sub_cube.shape), hdr=header, logger=None)
-                    cleaner_obj._prepare(clean=False, zlevel='none', cftype='med_smooth',
+                    cleaner_obj._prepare(clean=True, zlevel='none', cftype='med_smooth',
                                          cfwidth=101, extzlevel=None, mask=None, boost=50,
                                          contmask=msky, reject_factor=0.4)
 

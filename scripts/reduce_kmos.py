@@ -131,8 +131,13 @@ if __name__ == "__main__":
   
         # -- sky subtraction -------------------
         master_logger.info('- Running sky subtraction')
-        ecode = subtract_sky(logger=dir_logger, subdir=folder, obsband=band,
-                             **run_params['cubes'])
+        try:
+            ecode = subtract_sky(logger=dir_logger, subdir=folder, obsband=band,
+                                 **run_params['cubes'])
+        except Exception:
+            master_logger.exception('sky subtraction raised an exception (likely no matching sky exposures for {0})'.format(folder))
+            break_check('sky_subtraction', master_logger)
+            continue
         if ecode:
             break_check('sky_subtraction', master_logger)
             continue
@@ -171,8 +176,10 @@ if __name__ == "__main__":
             continue
         master_logger.info('-- Finished heliocentric correction')
         master_logger.info(' ')
-   
-        
+
+
+
+
         master_logger.info('- Finished reducing {0} '.format(folder))
   
   

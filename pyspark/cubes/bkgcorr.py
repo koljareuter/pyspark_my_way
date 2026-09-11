@@ -73,12 +73,12 @@ def bkg_correct_2d(logger=None, subdir=None, obsband=None,
                     vcube = make_var_cube(scube)
 
                     #generate wavelength array
-                    wave_array = reconstruct_wave(ofile[1].header)
+                    wave_array = reconstruct_wave(ofile[ifu].header)
 
                     #generate collapsed image
                     band_low, band_high = band_limits(obsband)
                     bkg_image = make_image(wave_array, cube, vcube, msky, llim=band_low+0.05, hlim=band_high-0.05)
-                    
+
                     #estimate modal background value, excluding edges
                     mode_bkg = hsm(bkg_image[1:-1,1:-1])
 
