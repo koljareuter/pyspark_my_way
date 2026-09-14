@@ -103,6 +103,7 @@ def set_config(configfile=None, logger=None):
     if input_params.has_section('cubes'):
         cdict = {'inputdir': input_params.get('pathing','procdir'),
                 'outputdir': input_params.get('pathing','procdir'),
+                'rawdir': input_params.get('pathing','rawdir'),
                 'star_prefix': star_names,
                 }
         

@@ -39,7 +39,8 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
     with open(outfile, 'wt') as ofile:
         for frame, _ in frames:
             ofile.write('{0} SCIENCE\n'.format(frame))
-            logger.debug('-- Added {0} SCIENCE'.format(frame))
+            if logger is not None:
+                logger.debug('-- Added {0} SCIENCE'.format(frame))
 
         #include additional files required for SPARK
         ofile.write('{0} XCAL\n'.format(os.path.join(caldir, 'XCAL_{0}{0}{0}.fits'.format(obsband.upper()))))
@@ -50,14 +51,17 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
         if use_oh:
             ofile.write('{0} OH_SPEC\n'.format(os.path.join(static_cal, 'kmos_oh_spec_{0}.fits'.format(obsband.lower()))))
         if telluric_in_sof:
-            tel_matches = glob.glob(os.path.join(kwargs['inputdir'], subdir, '*TELLURIC*'))
+            # TELLURIC files are raw data — look in rawdir, not the procdir
+            # that inputdir points to for the cubes stage
+            tel_dir = kwargs.get('rawdir', kwargs['inputdir'])
+            tel_matches = glob.glob(os.path.join(tel_dir, subdir, '*TELLURIC*{0}*'.format(obsband.upper())))
             if tel_matches:
                 ofile.write('{0} TELLURIC\n'.format(tel_matches[0]))
                 if logger is not None:
                     logger.debug('-- Added {0} TELLURIC'.format(tel_matches[0]))
             elif logger is not None:
                 logger.warning('-- telluric_in_sof=True but no TELLURIC file found in {0}'.format(
-                    os.path.join(kwargs['inputdir'], subdir)))
+                    os.path.join(tel_dir, subdir)))
 
         if logger is not None:
             logger.debug('-- Added {0} XCAL'.format(os.path.join(caldir, 'XCAL_{0}{0}{0}.fits'.format(obsband.upper()))))
@@ -100,14 +104,19 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
     for frame, _ in frames:
         frame_out = 'SCI_RECONSTRUCTED_{0}'.format(frame.split('/')[-1])
         frame_out2 = 'make_image_SCI_RECONSTRUCTED_{0}'.format(frame.split('/')[-1])
-        #if the file exist I copy it. 
         if os.path.isfile(frame_out):
-           #patch the header keywords to match original file
-           patch_header(frame_out, hdr_keys, frame)
-           #move the patched frame to the sky directory
-           clean_move(frame_out, os.path.join(kwargs['outputdir'], subdir, 'sky'))
-        if os.path.isfile(frame_out2):   
-           clean_move(frame_out2, os.path.join(kwargs['outputdir'], subdir, 'sky'))
+            patch_header(frame_out, hdr_keys, frame)
+            if sky_method == 'spark':
+                # kmos_sci_red already sky-subtracted; rename to *_s.fits and
+                # send directly to science/ so illuminate() can find it
+                frame_out_s = frame_out.replace('.fits', '_s.fits')
+                os.rename(frame_out, frame_out_s)
+                clean_move(frame_out_s, os.path.join(kwargs['outputdir'], subdir, 'science'))
+            else:
+                # ZAP/zapv1 will read from sky/ and write *_s.fits to science/
+                clean_move(frame_out, os.path.join(kwargs['outputdir'], subdir, 'sky'))
+        if os.path.isfile(frame_out2):
+            clean_move(frame_out2, os.path.join(kwargs['outputdir'], subdir, 'sky'))
 
     #move the .sof file for logging
     clean_move(outfile, os.path.join(kwargs['outputdir'], subdir, 'sof', '{0}_cubes_{1}.sof'\

@@ -123,7 +123,7 @@ if __name__ == "__main__":
         ecode = reconstruct(logger=dir_logger, subdir=folder, obsband=band, 
                             **run_params['cubes'])
         if ecode:
-            break_check(comp, master_logger)
+            break_check('reconstruction', master_logger)
             continue
         master_logger.info('-- Finished reconstruction')
         master_logger.info(' ')

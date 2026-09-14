@@ -46,13 +46,12 @@ def bkg_correct_2d(logger=None, subdir=None, obsband=None,
         #copy object to output
         exp_corr = duplicate(exposure, outputdir=fpath, suffix='bkg2d')
 
-	#define un-sky-subtracted exposure for line masking
-        exp_sky = os.path.join(sky_dir, "{0}.fits").format(fname[:-9])
-        #print(exp_sky)
-        #print(exposure)
-        #print(fname)
-        #print(fpath)
-        #print(exp_corr)
+        # un-sky-subtracted cube for sky-line masking (exists with zapv2/zapv1);
+        # with spark sky subtraction kmos_sci_red does not save that intermediate,
+        # so fall back to the science frame itself — residuals are still usable
+        exp_sky = os.path.join(sky_dir, "{0}.fits".format(fname[:-9]))
+        if not os.path.isfile(exp_sky):
+            exp_sky = exposure
         with fits.open(exp_corr, mode='update') as ofile,\
                 fits.open(exp_sky) as sfile:
 

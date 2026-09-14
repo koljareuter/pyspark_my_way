@@ -86,6 +86,10 @@ venv.bak/
 
 # misc files
 esorex.log
+*.log
+.logfile
+obj_sky_table.txt
+*.sof
 
 # KMOS data directories (OB trees, processing output, archives)
 kmos_ob_*/
@@ -94,7 +98,7 @@ kmos_*_sorted*/
 *.tar.gz
 
 # local config variants
-scripts/kmos_local.cfg
+scripts/kmos_local*.cfg
 scripts/reduce_kmos_local.py
 
 # data files that belong outside the repo
