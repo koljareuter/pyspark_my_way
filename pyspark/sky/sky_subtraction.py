@@ -30,27 +30,47 @@ sky_methods = ['zapv1', 'zapv2']
 
 
 def match_obj_sky(exposures):
-    """ Given a list of exposures generate by get_obs_exposures, return
-    a list of object,sky tuples, where the matching is done by closest time.
-    """
-    #pull out times
-    time_dict = dict([(efile, etime) for efile, _, etime, _ in exposures])
+    """Given a list of exposures from get_obs_exposures, return
+    (obj, sky_before, sky_after, weight_before, weight_after, dit) tuples.
 
-    #lookup table of times
-    object_exposures = [(efile, dit) for efile, etype, _, dit in exposures if etype == 'OBJ'] 
-    sky_exposures = [(efile, dit) for efile, etype, _, dit in exposures if etype == 'SKY'] 
-    #sky_times = [time_dict[efile] for efile, _ in sky_exposures]
-    #sky_dits = np.array([dit for _, dit in sky_exposures])
+    Each OBJ is bracketed by the closest DIT-matched SKY before and after it
+    in time. Weights are linear in time so that
+        w_before * sky_before + w_after * sky_after
+    gives a time-interpolated sky frame. When only one bounding side exists,
+    both slots point to the same file (w=1.0 on that side, 0.0 on the other).
+    """
+    time_dict       = {efile: etime for efile, _, etime, _ in exposures}
+    object_exposures = [(efile, dit) for efile, etype, _, dit in exposures if etype == 'OBJ']
+    sky_exposures    = [(efile, dit) for efile, etype, _, dit in exposures if etype == 'SKY']
 
     obj_sky_pair = []
     for obj, odit in object_exposures:
-        #only consider skys matched by exposure time
-        matched_skys = [efile for efile, dit in sky_exposures if dit == odit]
-        matched_times = [time_dict[efile] for efile, dit in sky_exposures if dit == odit]
+        t_obj   = time_dict[obj]
+        matched = [(efile, time_dict[efile])
+                   for efile, dit in sky_exposures if dit == odit]
+        if not matched:
+            continue
 
-        sky_idx = np.argmin(np.fabs(np.array(matched_times) - time_dict[obj]))
-        obj_sky_pair.append((obj, matched_skys[sky_idx], odit))
+        before = [(f, t) for f, t in matched if t <= t_obj]
+        after  = [(f, t) for f, t in matched if t >= t_obj]
 
+        if before and after:
+            sky_b, t_b = max(before, key=lambda x: x[1])  # latest before
+            sky_a, t_a = min(after,  key=lambda x: x[1])  # earliest after
+            if t_a == t_b:          # OBJ coincides with a SKY frame
+                w_b, w_a = 1.0, 0.0
+            else:
+                dt  = t_a - t_b
+                w_b = (t_a - t_obj) / dt
+                w_a = 1.0 - w_b
+        elif before:
+            sky_b, _ = max(before, key=lambda x: x[1])
+            sky_a, w_b, w_a = sky_b, 1.0, 0.0
+        else:
+            sky_a, _ = min(after, key=lambda x: x[1])
+            sky_b, w_b, w_a = sky_a, 0.0, 1.0
+
+        obj_sky_pair.append((obj, sky_b, sky_a, w_b, w_a, odit))
     return obj_sky_pair
 
 
@@ -195,7 +215,7 @@ def salva(cube, filename):
 def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
             inputdir=None, suffix='s', tbsub=False, svd_path=None, **kwargs):
 
-    for obj_exp, sky_exp, dit in matched_exposures:
+    for obj_exp, sky_b, sky_a, w_b, w_a, dit in matched_exposures:
         input_path = os.path.split(obj_exp)[0]
         output_path = os.path.join(inputdir, subdir, 'science')
 
@@ -227,13 +247,22 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
         # copy object frame to output
         exp_sub = duplicate(obj_exp, outputdir=output_path, suffix=suffix) 
 
+        bracketed = (sky_b != sky_a)
         if logger is not None:
-            logger.info('- Subtracting sky for {0}'.format(obj_exp.split('/')[-1])) 
-            logger.debug('-- Using {0} for initial subtraction'.format(sky_exp.split('/')[-1]))
-        with fits.open(exp_sub, mode='update') as ofile, fits.open(sky_exp) as sfile:
+            logger.info('- Subtracting sky for {0}'.format(obj_exp.split('/')[-1]))
+            if bracketed:
+                logger.debug('-- Bracketed sky: {0} (w={1:.2f}) + {2} (w={3:.2f})'.format(
+                    sky_b.split('/')[-1], w_b, sky_a.split('/')[-1], w_a))
+            else:
+                logger.debug('-- Using {0} for initial subtraction'.format(sky_b.split('/')[-1]))
+        with fits.open(exp_sub, mode='update') as ofile, \
+             fits.open(sky_b) as sbfile, fits.open(sky_a) as safile:
 
             for ifu in range(1,25):
-                scube = np.array(sfile[ifu].data)
+                scube_b = np.array(sbfile[ifu].data)
+                scube_a = np.array(safile[ifu].data)
+                # time-interpolated sky; when not bracketed one weight is 0
+                scube = w_b * scube_b + w_a * scube_a
                 ocube = np.array(ofile[ifu].data)
                 header = ofile[ifu].header
 
@@ -245,18 +274,16 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
                     if logger is not None:
                         logger.info('-- Processing sky subtraction for IFU {0}'.format(ifu))
 
-                    #generate mask array for continuum
-                    msky = find_lines(bn.nanmedian(scube[:,1:13,1:13].reshape(2048,-1), axis=1))
-                    
+                    # use the higher-weight sky for the OH line mask (better S/N)
+                    ref_sky = scube_b if w_b >= w_a else scube_a
+                    msky = find_lines(bn.nanmedian(ref_sky[:,1:13,1:13].reshape(2048,-1), axis=1))
+
                     #apply thermal background correction if flagged
                     if tbsub:
                         if logger is not None:
                             logger.info('--- Removing thermal background from object and sky frames')
-                        #reconstruct wavelength solution
-                        #print('ricostruisci')
                         wave = reconstruct_wave(header)
 
-                        #extract 1D spectra from the un-sky-subtracted cubes
                         scube_corr = sub_thermal(wave, scube, msky)
                         ocube_corr = sub_thermal(wave, ocube, msky)
                         sub_cube = np.copy(ocube_corr) - np.copy(scube_corr)
@@ -299,12 +326,14 @@ def zap_sky_v1(matched_exposures, logger=None, obsband=None, subdir=None,
     #if logger is not None:
     #    logger.debug("- Subtracting sky using {0}".format(svd_file))
 
-    for obj_exp, sky_exp in matched_exposures:
+    for obj_exp, sky_b, sky_a, w_b, w_a, dit in matched_exposures:
+        # v1 does not support time-interpolated bracketing; use the nearest sky
+        sky_exp = sky_b if w_b >= w_a else sky_a
         input_path = os.path.split(obj_exp)[0]
         output_path = os.path.join(inputdir, subdir, 'science')
 
         # copy object frame to output
-        exp_sub = duplicate(obj_exp, outputdir=output_path, suffix=suffix) 
+        exp_sub = duplicate(obj_exp, outputdir=output_path, suffix=suffix)
 
         with fits.open(exp_sub, mode='update') as ofile, fits.open(sky_exp) as sfile:
 
@@ -323,25 +352,23 @@ def zap_sky_v1(matched_exposures, logger=None, obsband=None, subdir=None,
 
                     #generate mask array for continuum
                     msky = find_lines(bn.nanmedian(scube[:,1:13,1:13].reshape(2048,-1), axis=1))
-                    
+
                     #apply thermal background correction if flagged
                     if tbsub:
                         if logger is not None:
                             logger.info('--- Removing thermal background from object and sky frames')
-                        #reconstruct wavelength solution
                         wave = reconstruct_wave(header)
 
-                        #extract 1D spectra from the un-sky-subtracted cubes
                         scube_corr = sub_thermal(wave, scube, msky)
                         ocube_corr = sub_thermal(wave, ocube, msky)
                         sub_cube = np.copy(ocube_corr) - np.copy(scube_corr)
                     else:
                         sub_cube = np.copy(ocube) - np.copy(scube)
-                    
+
                     nanmask = np.isfinite(sub_cube)
                     sub_cube[~nanmask] = 0.
 
-                    zap_obj = process_v1('dummy', cube=sub_cube*exp_scale, hdr=header, clean=False, 
+                    zap_obj = process_v1('dummy', cube=sub_cube, hdr=header, clean=False,
                                         zlevel='none', cftype='med_smooth', cfwidthSP=51, 
                                         extSVD=fpath, interactive=True, overwrite=True,
                                         instrument='KMOS', boost=50, contmask=msky,

@@ -17,12 +17,14 @@ import matplotlib.pyplot as pl
 __all__ = ["bkg_correct_2d", "bkg_correct_spec"]
 
 
-def bkg_correct_2d(logger=None, subdir=None, obsband=None, 
+def bkg_correct_2d(logger=None, subdir=None, obsband=None,
                search_suffix=None, bkg_corr=True, **kwargs):
 
     if not bkg_corr:
         return 0
-    
+
+    sky_method = kwargs.get('sky_method', 'zapv2')
+
     if logger is not None:
         logger.debug('- Running background correction')
 
@@ -48,9 +50,13 @@ def bkg_correct_2d(logger=None, subdir=None, obsband=None,
 
         # un-sky-subtracted cube for sky-line masking (exists with zapv2/zapv1);
         # with spark sky subtraction kmos_sci_red does not save that intermediate,
-        # so fall back to the science frame itself — residuals are still usable
+        # so fall back to the science frame itself.
         exp_sky = os.path.join(sky_dir, "{0}.fits".format(fname[:-9]))
         if not os.path.isfile(exp_sky):
+            if logger is not None and sky_method == 'spark':
+                logger.warning(
+                    '-- No pre-sky cube for {0}; sky-line mask derived from science frame '
+                    '(spark method: OH residuals may be attenuated, mask quality reduced)'.format(fname))
             exp_sky = exposure
         with fits.open(exp_corr, mode='update') as ofile,\
                 fits.open(exp_sky) as sfile:
@@ -76,7 +82,7 @@ def bkg_correct_2d(logger=None, subdir=None, obsband=None,
 
                     #generate collapsed image
                     band_low, band_high = band_limits(obsband)
-                    bkg_image = make_image(wave_array, cube, vcube, msky, llim=band_low+0.05, hlim=band_high-0.05)
+                    bkg_image = make_image(wave_array, cube, vcube, msky, llim=band_low+0.05, hlim=band_high-0.05, obsband=obsband)
 
                     #estimate modal background value, excluding edges
                     mode_bkg = hsm(bkg_image[1:-1,1:-1])
@@ -150,7 +156,7 @@ def bkg_correct_spec(logger=None, subdir=None, obsband=None,
 
                     #generate collapsed image
                     band_low, band_high = band_limits(obsband)
-                    bkg_image = make_image(wave_array, cube, vcube, msky, llim=band_low+0.05, hlim=band_high-0.05)
+                    bkg_image = make_image(wave_array, cube, vcube, msky, llim=band_low+0.05, hlim=band_high-0.05, obsband=obsband)
                    
                     #clip edges off the background image
                     clipped_bkg = bkg_image[1:-1,1:-1]

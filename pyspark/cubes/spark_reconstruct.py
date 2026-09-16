@@ -5,10 +5,61 @@ import os
 import glob
 
 from ..utils.fileutils import (get_sof_list, clean_move, patch_header)
-from ..utils.obsutils import (get_cal_rotator, run_spark)
+from ..utils.obsutils import (get_cal_rotator, run_spark, reconstruct_wave)
 from ..utils.setuputils import id_gen
 
 __all__ = ["reconstruct"]
+
+
+# Deep-absorption wavelength windows used to verify that the telluric
+# correction was actually applied (kmos_sci_red NaN-masks T < 0.1 there).
+_TELL_CHECK_BANDS = {
+    'YJ': (1.34, 1.42),
+    'H':  (1.79, 1.94),
+    'K':  (1.95, 2.05),
+}
+
+
+def _verify_telluric(cube_path, obsband, logger):
+    """Warn if the deep-absorption region contains no NaN channels.
+
+    After telluric correction kmos_sci_red sets T<0.1 channels to NaN.
+    If the median NaN fraction across IFUs is below 5% the correction
+    likely was not applied, which warrants a loud warning.
+    """
+    lo, hi = _TELL_CHECK_BANDS.get(obsband.upper(), (None, None))
+    if lo is None:
+        return
+    try:
+        with fits.open(cube_path) as hdul:
+            nan_fracs = []
+            for ifu in range(1, 25):
+                d = hdul[ifu].data
+                if d is None or np.ndim(d) != 3:
+                    continue
+                wave = reconstruct_wave(hdul[ifu].header)
+                in_band = (wave >= lo) & (wave <= hi)
+                if not in_band.any():
+                    continue
+                nan_fracs.append(np.isnan(d[in_band]).mean())
+            if not nan_fracs:
+                return
+            med = float(np.median(nan_fracs))
+            if med < 0.05:
+                if logger is not None:
+                    logger.warning(
+                        '!! Telluric check {0}: only {1:.1%} NaN in deep-band '
+                        '{2:.2f}-{3:.2f} µm — telluric correction may not have '
+                        'been applied'.format(
+                            os.path.basename(cube_path), med, lo, hi))
+            else:
+                if logger is not None:
+                    logger.info(
+                        '-- Telluric check OK ({0}): {1:.1%} NaN in deep-band '
+                        'across {2} IFUs'.format(
+                            os.path.basename(cube_path), med, len(nan_fracs)))
+    except Exception:
+        pass
 
 #static calibration directory based on SPARK_HOME environment variable
 static_cal = os.environ['KMOS_CALIB']
@@ -111,7 +162,12 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
                 # send directly to science/ so illuminate() can find it
                 frame_out_s = frame_out.replace('.fits', '_s.fits')
                 os.rename(frame_out, frame_out_s)
-                clean_move(frame_out_s, os.path.join(kwargs['outputdir'], subdir, 'science'))
+                dest = os.path.join(kwargs['outputdir'], subdir, 'science')
+                clean_move(frame_out_s, dest)
+                if telluric_in_sof and tel_matches:
+                    _verify_telluric(
+                        os.path.join(dest, os.path.basename(frame_out_s)),
+                        obsband, logger)
             else:
                 # ZAP/zapv1 will read from sky/ and write *_s.fits to science/
                 clean_move(frame_out, os.path.join(kwargs['outputdir'], subdir, 'sky'))

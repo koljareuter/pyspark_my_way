@@ -278,11 +278,27 @@ def band_limits(band):
     return rtab[band.upper()]
 
 
-def make_image(wl, data, noise, mask, llim=1.05, hlim=1.35):
+# Deep telluric-absorption channels to exclude per band when collapsing
+# to a background image. Prevents the water gap from biasing the mode estimate.
+_BAND_ABSORPTION_EXCL = {
+    'IZ': [],
+    'YJ': [(1.25, 1.29)],
+    'H':  [],
+    'K':  [],
+    'HK': [],
+}
+
+
+def make_image(wl, data, noise, mask, llim=1.05, hlim=1.35, obsband=None):
     nwl, nx, ny = data.shape
 
     left_idx, right_idx = np.searchsorted(wl, llim, side='left'), np.searchsorted(wl, hlim, side='right')
     det_image = np.zeros((nx, ny), dtype=float)
+
+    excl_ranges = _BAND_ABSORPTION_EXCL.get(
+        obsband.upper() if obsband else None,
+        [(1.25, 1.29)],  # default: preserve old YJ behaviour for unknown callers
+    )
 
     for jj in range(nx):
         for kk in range(ny):
@@ -291,7 +307,8 @@ def make_image(wl, data, noise, mask, llim=1.05, hlim=1.35):
 
             #generate masking for this object
             good = np.ones(len(this_data), dtype=bool)
-            good[(wl > 1.25) & (wl < 1.29)] = False
+            for excl_lo, excl_hi in excl_ranges:
+                good[(wl > excl_lo) & (wl < excl_hi)] = False
             good[mask] = False
             good[:left_idx], good[right_idx:] = False, False
             good[this_var <= 0] = False
