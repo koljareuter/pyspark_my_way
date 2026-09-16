@@ -261,8 +261,6 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
             for ifu in range(1,25):
                 scube_b = np.array(sbfile[ifu].data)
                 scube_a = np.array(safile[ifu].data)
-                # time-interpolated sky; when not bracketed one weight is 0
-                scube = w_b * scube_b + w_a * scube_a
                 ocube = np.array(ofile[ifu].data)
                 header = ofile[ifu].header
 
@@ -274,8 +272,21 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
                     if logger is not None:
                         logger.info('-- Processing sky subtraction for IFU {0}'.format(ifu))
 
-                    # use the higher-weight sky for the OH line mask (better S/N)
-                    ref_sky = scube_b if w_b >= w_a else scube_a
+                    # Build interpolated sky; skip or fall back for dead sky IFUs
+                    b_ok = np.ndim(scube_b) == 3
+                    a_ok = np.ndim(scube_a) == 3
+                    if not b_ok and not a_ok:
+                        continue
+                    if b_ok and a_ok:
+                        scube   = w_b * scube_b + w_a * scube_a
+                        ref_sky = scube_b if w_b >= w_a else scube_a
+                    elif b_ok:
+                        scube   = scube_b
+                        ref_sky = scube_b
+                    else:
+                        scube   = scube_a
+                        ref_sky = scube_a
+
                     msky = find_lines(bn.nanmedian(ref_sky[:,1:13,1:13].reshape(2048,-1), axis=1))
 
                     #apply thermal background correction if flagged
