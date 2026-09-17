@@ -119,42 +119,40 @@ def build_custom_svd(subdir=None, inputdir=None, obsband=None, pcaoutfits=None,
     [cubes] section of the .cfg -- subtract_sky forwards **kwargs straight
     through to zap_sky_v2).
     """
-    exposures = get_obs_exposures(subdir=os.path.join(subdir, 'sky'), obsband=obsband, inputdir=inputdir, **kwargs)
-    sky_exposures = [efile for efile, etype, _, _ in exposures if etype == 'SKY']
-    if not len(sky_exposures):
-        if logger is not None:
-            logger.warning('-- No SKY exposures found for {0}, cannot build custom SVD'.format(subdir))
-        return None
+    # accept a single subdir string or a list of subdir strings so the caller
+    # can pool sky frames from multiple OBs into one richer eigenbasis
+    subdirs_list = [subdir] if isinstance(subdir, str) else list(subdir)
 
-    spectra, header = [], None
-    for sky_exp in sky_exposures:
-        with fits.open(sky_exp) as sfile:
-            for ifu in range(1, 25):
-                cube = np.array(sfile[ifu].data)
-                if cube.ndim != 3:
-                    continue
-                if header is None:
-                    header = sfile[ifu].header
-                flat = cube.reshape(cube.shape[0], -1)
-                # spaxels routinely have a few NaN samples near the edge of
-                # their own valid-wavelength coverage (see CUBE_EDGE_MARGIN
-                # in telluric_check.ipynb) -- requiring every pixel finite
-                # throws away nearly everything. Keep spaxels that are
-                # mostly finite and zero-fill the small remaining gaps.
-                finite_frac = np.isfinite(flat).mean(axis=0)
-                usable = flat[:, finite_frac >= 0.9]
-                if usable.size:
-                    spectra.append(np.where(np.isfinite(usable), usable, 0.0))
+    spectra, header, n_sky_total = [], None, 0
+    for sd in subdirs_list:
+        exposures = get_obs_exposures(subdir=os.path.join(sd, 'sky'), obsband=obsband,
+                                      inputdir=inputdir, **kwargs)
+        sky_files = [efile for efile, etype, _, _ in exposures if etype == 'SKY']
+        n_sky_total += len(sky_files)
+        for sky_exp in sky_files:
+            with fits.open(sky_exp) as sfile:
+                for ifu in range(1, 25):
+                    cube = np.array(sfile[ifu].data)
+                    if cube.ndim != 3:
+                        continue
+                    if header is None:
+                        header = sfile[ifu].header
+                    flat = cube.reshape(cube.shape[0], -1)
+                    # keep spaxels that are mostly finite; zero-fill the small gaps
+                    finite_frac = np.isfinite(flat).mean(axis=0)
+                    usable = flat[:, finite_frac >= 0.9]
+                    if usable.size:
+                        spectra.append(np.where(np.isfinite(usable), usable, 0.0))
 
     if not spectra:
         if logger is not None:
-            logger.warning('-- No finite sky spectra found for {0}, cannot build custom SVD'.format(subdir))
+            logger.warning('-- No finite sky spectra found, cannot build custom SVD')
         return None
 
     spec_array = np.concatenate(spectra, axis=1)
     if logger is not None:
-        logger.info('- Building custom SVD from {0} sky spaxel spectra across {1} exposure(s)'.format(
-            spec_array.shape[1], len(sky_exposures)))
+        logger.info('- Building custom SVD from {0} sky spaxel spectra across {1} exposure(s) in {2} OB(s)'.format(
+            spec_array.shape[1], n_sky_total, len(subdirs_list)))
 
     # sigma-clip outlier spectra (cosmic rays, bad rows, edge artefacts) before PCA
     spec_rms = np.sqrt(bn.nanmean(spec_array ** 2, axis=0))

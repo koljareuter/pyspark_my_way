@@ -50,6 +50,21 @@ if __name__ == '__main__':
     bands   = params['obsband']
 
     for band in bands:
+        # Build one master SVD from ALL OBs in procdir (much richer eigenbasis
+        # than a per-OB SVD).  Cached on disk so subsequent runs skip the build.
+        all_ob_dirs = sorted(
+            d for d in os.listdir(procdir)
+            if d.startswith('KMOS.') and os.path.isdir(os.path.join(procdir, d))
+        )
+        master_svd = os.path.join(procdir, 'custom_SVD_{0}_master.fits'.format(band))
+        if not os.path.exists(master_svd):
+            logger.info('Building master SVD from {0} OBs in {1}'.format(len(all_ob_dirs), procdir))
+            build_custom_svd(subdir=all_ob_dirs, inputdir=procdir, obsband=band,
+                             prefix='dc', pcaoutfits=master_svd, logger=logger)
+        else:
+            logger.info('Reusing existing master SVD: {0}'.format(master_svd))
+        has_master = os.path.exists(master_svd)
+
         for folder in folders:
             logger.info('=== {0} / {1} ==='.format(band, folder))
 
@@ -68,18 +83,13 @@ if __name__ == '__main__':
                 continue
             logger.info('Removed {0} existing science/ files'.format(n))
 
-            # --- build custom SVD from this OB's own sky frames ---
-            svd_out = os.path.join(procdir, folder, 'custom_SVD_{0}.fits'.format(band))
-            logger.info('Building custom SVD -> {0}'.format(svd_out))
-            built = build_custom_svd(subdir=folder, inputdir=procdir, obsband=band,
-                                     prefix='dc', pcaoutfits=svd_out, logger=logger)
             cubes_params = dict(params['cubes'])
-            if built:
-                cubes_params['svd_path'] = svd_out
-                logger.info('Custom SVD built — using it for ZAP')
+            if has_master:
+                cubes_params['svd_path'] = master_svd
+                logger.info('Using master SVD ({0} OBs) for ZAP'.format(len(all_ob_dirs)))
             else:
-                logger.warning('Custom SVD build failed — falling back to generic SVD')
                 cubes_params.pop('svd_path', None)
+                logger.warning('Master SVD not available — falling back to generic SVD')
 
             # --- sky subtraction (with bracketing on pipeline-review) ---
             logger.info('Running sky subtraction ({0})...'.format(
