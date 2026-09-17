@@ -50,21 +50,6 @@ if __name__ == '__main__':
     bands   = params['obsband']
 
     for band in bands:
-        # Build one master SVD from ALL OBs in procdir (much richer eigenbasis
-        # than a per-OB SVD).  Cached on disk so subsequent runs skip the build.
-        all_ob_dirs = sorted(
-            d for d in os.listdir(procdir)
-            if d.startswith('KMOS.') and os.path.isdir(os.path.join(procdir, d))
-        )
-        master_svd = os.path.join(procdir, 'custom_SVD_{0}_master.fits'.format(band))
-        if not os.path.exists(master_svd):
-            logger.info('Building master SVD from {0} OBs in {1}'.format(len(all_ob_dirs), procdir))
-            build_custom_svd(subdir=all_ob_dirs, inputdir=procdir, obsband=band,
-                             prefix='dc', pcaoutfits=master_svd, logger=logger)
-        else:
-            logger.info('Reusing existing master SVD: {0}'.format(master_svd))
-        has_master = os.path.exists(master_svd)
-
         for folder in folders:
             logger.info('=== {0} / {1} ==='.format(band, folder))
 
@@ -83,13 +68,12 @@ if __name__ == '__main__':
                 continue
             logger.info('Removed {0} existing science/ files'.format(n))
 
+            # Use the generic bundled SVD (purpose-built, wavelength-consistent).
+            # Custom per-OB or multi-OB SVDs caused grating-drift artefacts across
+            # nights and over-subtracted galaxy emission lines — abandoned.
             cubes_params = dict(params['cubes'])
-            if has_master:
-                cubes_params['svd_path'] = master_svd
-                logger.info('Using master SVD ({0} OBs) for ZAP'.format(len(all_ob_dirs)))
-            else:
-                cubes_params.pop('svd_path', None)
-                logger.warning('Master SVD not available — falling back to generic SVD')
+            cubes_params.pop('svd_path', None)
+            logger.info('Using generic ZAP SVD (+ bracketed sky + OH scaling)')
 
             # --- sky subtraction (with bracketing on pipeline-review) ---
             logger.info('Running sky subtraction ({0})...'.format(
