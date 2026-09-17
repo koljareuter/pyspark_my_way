@@ -74,7 +74,22 @@ def match_obj_sky(exposures):
     return obj_sky_pair
 
 
-def make_SVDs_v2(spec_array, header, pcaoutfits=None, zlevel='none', cftype='med_smooth', 
+def _oh_scale(science_cube, sky_cube, oh_mask):
+    """Return a scale factor so sky_cube OH-line flux matches science_cube.
+
+    Corrects for OH variability on timescales shorter than the bracketing
+    cadence before time-interpolation.  Clamped to [0.5, 2.0].
+    """
+    if not oh_mask.any():
+        return 1.0
+    sci = bn.nanmedian(science_cube[oh_mask])
+    sky = bn.nanmedian(sky_cube[oh_mask])
+    if sky <= 0 or not np.isfinite(sky) or not np.isfinite(sci):
+        return 1.0
+    return float(np.clip(sci / sky, 0.5, 2.0))
+
+
+def make_SVDs_v2(spec_array, header, pcaoutfits=None, zlevel='none', cftype='med_smooth',
               clean=False, cfwidth=101, boost=50, reject_factor=0.4, logger=None):
     """ Given an input (2D) array of spectra, generate PCA output following
     zap_v2.0 conventions.
@@ -140,6 +155,18 @@ def build_custom_svd(subdir=None, inputdir=None, obsband=None, pcaoutfits=None,
     if logger is not None:
         logger.info('- Building custom SVD from {0} sky spaxel spectra across {1} exposure(s)'.format(
             spec_array.shape[1], len(sky_exposures)))
+
+    # sigma-clip outlier spectra (cosmic rays, bad rows, edge artefacts) before PCA
+    spec_rms = np.sqrt(bn.nanmean(spec_array ** 2, axis=0))
+    med_rms  = bn.nanmedian(spec_rms)
+    mad_rms  = 1.4826 * bn.nanmedian(np.abs(spec_rms - med_rms))
+    keep     = spec_rms < med_rms + 5.0 * mad_rms
+    n_clip   = int((~keep).sum())
+    if n_clip:
+        spec_array = spec_array[:, keep]
+        if logger is not None:
+            logger.info('- Sigma-clipped {0} outlier sky spectra ({1} kept for SVD)'.format(
+                n_clip, spec_array.shape[1]))
 
     make_SVDs_v2(spec_array, header, pcaoutfits=pcaoutfits, logger=logger)
     return pcaoutfits
@@ -277,17 +304,23 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
                     a_ok = np.ndim(scube_a) == 3
                     if not b_ok and not a_ok:
                         continue
-                    if b_ok and a_ok:
-                        scube   = w_b * scube_b + w_a * scube_a
-                        ref_sky = scube_b if w_b >= w_a else scube_a
-                    elif b_ok:
-                        scube   = scube_b
-                        ref_sky = scube_b
-                    else:
-                        scube   = scube_a
-                        ref_sky = scube_a
 
-                    msky = find_lines(bn.nanmedian(ref_sky[:,1:13,1:13].reshape(2048,-1), axis=1))
+                    # compute msky before interpolation so it is available for OH scaling
+                    _ref = scube_b if b_ok else scube_a
+                    msky = find_lines(bn.nanmedian(_ref[:,1:13,1:13].reshape(2048,-1), axis=1))
+
+                    # Scale each sky frame to match the science-frame OH-line amplitude
+                    # before time-interpolation, correcting for sub-cadence OH variability
+                    if b_ok and a_ok:
+                        scale_b = _oh_scale(ocube, scube_b, msky)
+                        scale_a = _oh_scale(ocube, scube_a, msky)
+                        if logger is not None:
+                            logger.debug('--- OH scale: sky_b={0:.3f}  sky_a={1:.3f}'.format(scale_b, scale_a))
+                        scube = w_b * (scale_b * scube_b) + w_a * (scale_a * scube_a)
+                    elif b_ok:
+                        scube = _oh_scale(ocube, scube_b, msky) * scube_b
+                    else:
+                        scube = _oh_scale(ocube, scube_a, msky) * scube_a
 
                     #apply thermal background correction if flagged
                     if tbsub:
