@@ -87,11 +87,32 @@ def bkg_correct_2d(logger=None, subdir=None, obsband=None,
                     #estimate modal background value, excluding edges
                     mode_bkg = hsm(bkg_image[1:-1,1:-1])
 
-                    #re-apply to 
-                    ofile[ifu].data = np.copy(cube)-mode_bkg
+                    # Per-wavelength spectral background from the emptiest spaxels.
+                    # Use the faintest 30% of spaxels (empty sky) to build a residual
+                    # background spectrum; subtract it on non-sky-line channels only
+                    # so ZAP-cleaned OH lines are left untouched.
+                    bkg_flat = bkg_image.ravel()
+                    ok_pix   = np.isfinite(bkg_flat)
+                    if ok_pix.sum() > 4:
+                        sky_thresh  = np.nanpercentile(bkg_flat[ok_pix], 30)
+                        sky_mask_2d = (bkg_image <= sky_thresh) & np.isfinite(bkg_image)
+                        sky_mask_2d[0,:]  = sky_mask_2d[-1,:] = False
+                        sky_mask_2d[:,0]  = sky_mask_2d[:,-1] = False
+                    else:
+                        sky_mask_2d = np.zeros(bkg_image.shape, dtype=bool)
+
+                    residual = np.copy(cube) - mode_bkg
+                    if sky_mask_2d.sum() >= 4:
+                        flat_res = residual.reshape(oz, -1)
+                        sky_spec = bn.nanmedian(flat_res[:, sky_mask_2d.ravel()], axis=1)
+                        sky_spec[msky] = 0.0   # leave sky-line channels for ZAP
+                        residual -= sky_spec[:, np.newaxis, np.newaxis]
+
+                    ofile[ifu].data = np.asarray(residual, dtype=np.float32)
 
                     if logger is not None:
-                        logger.debug('-- Applied background correction to IFU {0}: {1}'.format(ifu, mode_bkg))
+                        logger.debug('-- Background correction IFU {0}: scalar={1:.3f}  spectral from {2} spaxels'.format(
+                            ifu, mode_bkg, sky_mask_2d.sum()))
             
                 ofile[ifu].header['HISTORY'] = "Applied background correction: {0:.3f}".format(mode_bkg)
            

@@ -74,7 +74,39 @@ def match_obj_sky(exposures):
     return obj_sky_pair
 
 
-def make_SVDs_v2(spec_array, header, pcaoutfits=None, zlevel='none', cftype='med_smooth', 
+def _oh_scale(science_cube, sky_cube, oh_mask):
+    """Flux-scale sky_cube so its OH-line level matches science_cube.
+
+    Corrects for OH variability faster than the bracketing cadence.
+    Returns a scalar clamped to [0.5, 2.0].
+    """
+    if not oh_mask.any():
+        return 1.0
+    sci = bn.nanmedian(science_cube[oh_mask])
+    sky = bn.nanmedian(sky_cube[oh_mask])
+    if sky <= 0 or not np.isfinite(sky) or not np.isfinite(sci):
+        return 1.0
+    return float(np.clip(sci / sky, 0.5, 2.0))
+
+
+def _make_object_mask(sub_cube, sigma_thresh=3.0):
+    """Return a 2D bool mask marking galaxy spaxels in a sky-subtracted cube.
+
+    Spaxels above background + sigma_thresh * noise are flagged so ZAP
+    estimates its continuum from sky-only spaxels.
+    """
+    img  = bn.nanmedian(sub_cube, axis=0)
+    flat = img[np.isfinite(img)].ravel()
+    if flat.size < 9:
+        return np.zeros(img.shape, dtype=bool)
+    bkg   = np.nanpercentile(flat, 50)
+    noise = 1.4826 * bn.nanmedian(np.abs(flat[flat <= bkg] - bkg))
+    if noise <= 0 or not np.isfinite(noise):
+        return np.zeros(img.shape, dtype=bool)
+    return img > bkg + sigma_thresh * noise
+
+
+def make_SVDs_v2(spec_array, header, pcaoutfits=None, zlevel='none', cftype='med_smooth',
               clean=False, cfwidth=101, boost=50, reject_factor=0.4, logger=None):
     """ Given an input (2D) array of spectra, generate PCA output following
     zap_v2.0 conventions.
@@ -277,52 +309,76 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
                     a_ok = np.ndim(scube_a) == 3
                     if not b_ok and not a_ok:
                         continue
+
+                    # msky needed before interpolation so we can OH-scale each frame
+                    _ref_for_msky = scube_b if b_ok else scube_a
+                    msky = find_lines(bn.nanmedian(_ref_for_msky[:,1:13,1:13].reshape(2048,-1), axis=1))
+
+                    # Scale each sky frame to match the science OH-line flux level before
+                    # time-interpolation, correcting for variability faster than the cadence
                     if b_ok and a_ok:
-                        scube   = w_b * scube_b + w_a * scube_a
+                        scale_b = _oh_scale(ocube, scube_b, msky)
+                        scale_a = _oh_scale(ocube, scube_a, msky)
+                        if logger is not None:
+                            logger.debug('--- OH scale: sky_b={0:.3f}  sky_a={1:.3f}'.format(scale_b, scale_a))
+                        scube   = w_b * (scale_b * scube_b) + w_a * (scale_a * scube_a)
                         ref_sky = scube_b if w_b >= w_a else scube_a
                     elif b_ok:
-                        scube   = scube_b
+                        scale_b = _oh_scale(ocube, scube_b, msky)
+                        scube   = scale_b * scube_b
                         ref_sky = scube_b
                     else:
-                        scube   = scube_a
+                        scale_a = _oh_scale(ocube, scube_a, msky)
+                        scube   = scale_a * scube_a
                         ref_sky = scube_a
-
-                    msky = find_lines(bn.nanmedian(ref_sky[:,1:13,1:13].reshape(2048,-1), axis=1))
 
                     #apply thermal background correction if flagged
                     if tbsub:
                         if logger is not None:
                             logger.info('--- Removing thermal background from object and sky frames')
                         wave = reconstruct_wave(header)
-
                         scube_corr = sub_thermal(wave, scube, msky)
                         ocube_corr = sub_thermal(wave, ocube, msky)
                         sub_cube = np.copy(ocube_corr) - np.copy(scube_corr)
                     else:
                         sub_cube = np.copy(ocube) - np.copy(scube)
-                    
-                    nanmask = np.isfinite(sub_cube)
-                    nanmask2=copy.deepcopy(nanmask)
+
+                    nanmask  = np.isfinite(sub_cube)
+                    nanmask2 = copy.deepcopy(nanmask)
                     sub_cube[~nanmask] = 0.
-                    
-                    zap_obj = process_v2('dummy', cube=sub_cube, hdr=header, clean=True,
-                                        zlevel='none', cftype='med_smooth', cfwidthSP=101,
+
+                    # Mask bright galaxy spaxels so ZAP estimates sky from sky-only pixels
+                    obj_mask_2d = _make_object_mask(sub_cube)
+                    sub_cube_for_zap = np.copy(sub_cube)
+                    if obj_mask_2d.any():
+                        sky_only  = sub_cube[:, ~obj_mask_2d]
+                        bkg_fill  = float(bn.nanmedian(sky_only)) if sky_only.size else 0.0
+                        sub_cube_for_zap[:, obj_mask_2d] = bkg_fill if np.isfinite(bkg_fill) else 0.0
+                        if logger is not None:
+                            logger.debug('--- Masked {0} galaxy spaxels from ZAP'.format(obj_mask_2d.sum()))
+
+                    zap_obj = process_v2('dummy', cube=sub_cube_for_zap, hdr=header, clean=True,
+                                        zlevel='none', cftype='med_smooth', cfwidthSP=55,
                                         extSVD=fpath, interactive=True, overwrite=True,
-                                        instrument='KMOS', boost=50, contmask=msky,
+                                        instrument='KMOS', boost=25, contmask=msky,
                                         reject_factor=0.4, logger=logger)
 
-                    #reprocess the reconstructed sky spectrum to correct for any residual continuum drift
+                    # Apply sky model (derived from masked cube) to the original unmasked cube
+                    sky_model    = zap_obj.recon.reshape(sub_cube.shape)
+                    sub_cube_corr = sub_cube - sky_model
+
+                    #reprocess the reconstructed sky to correct for residual continuum drift
                     if logger is not None:
                         logger.debug('---- running second-order continuum cleaning')
-
-                    cleaner_obj = ZapObj_v2('dummy', pca_class=None, n_components=None, instrument='KMOS',
-                                            cube=zap_obj.recon.reshape(sub_cube.shape), hdr=header, logger=None)
+                    cleaner_obj = ZapObj_v2('dummy', pca_class=None, n_components=None,
+                                            instrument='KMOS', cube=sky_model,
+                                            hdr=header, logger=None)
                     cleaner_obj._prepare(clean=True, zlevel='none', cftype='med_smooth',
-                                         cfwidth=101, extzlevel=None, mask=None, boost=50,
+                                         cfwidth=55, extzlevel=None, mask=None, boost=25,
                                          contmask=msky, reject_factor=0.4)
 
                     #reincorporate residual continuum array
-                    corr_cube = np.copy(zap_obj.cleancube+cleaner_obj.contarray.reshape(sub_cube.shape))
+                    corr_cube = np.copy(sub_cube_corr + cleaner_obj.contarray.reshape(sub_cube.shape))
                     corr_cube[~nanmask2] = np.nan
                     ofile[ifu].data = np.asarray(corr_cube, dtype=np.float32)
 
