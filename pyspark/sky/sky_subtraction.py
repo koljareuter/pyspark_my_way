@@ -303,22 +303,16 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
                     if not b_ok and not a_ok:
                         continue
 
-                    # compute msky before interpolation so it is available for OH scaling
+                    # Build time-interpolated sky from bracketed frames
                     _ref = scube_b if b_ok else scube_a
                     msky = find_lines(bn.nanmedian(_ref[:,1:13,1:13].reshape(2048,-1), axis=1))
 
-                    # Scale each sky frame to match the science-frame OH-line amplitude
-                    # before time-interpolation, correcting for sub-cadence OH variability
                     if b_ok and a_ok:
-                        scale_b = _oh_scale(ocube, scube_b, msky)
-                        scale_a = _oh_scale(ocube, scube_a, msky)
-                        if logger is not None:
-                            logger.debug('--- OH scale: sky_b={0:.3f}  sky_a={1:.3f}'.format(scale_b, scale_a))
-                        scube = w_b * (scale_b * scube_b) + w_a * (scale_a * scube_a)
+                        scube = w_b * scube_b + w_a * scube_a
                     elif b_ok:
-                        scube = _oh_scale(ocube, scube_b, msky) * scube_b
+                        scube = np.copy(scube_b)
                     else:
-                        scube = _oh_scale(ocube, scube_a, msky) * scube_a
+                        scube = np.copy(scube_a)
 
                     #apply thermal background correction if flagged
                     if tbsub:
