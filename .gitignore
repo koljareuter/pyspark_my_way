@@ -104,4 +104,6 @@ scripts/reduce_kmos_local.py
 # data files that belong outside the repo
 scripts/*.fits
 scripts/*.csv
+!scripts/target_redshifts.csv
 telluric_check.ipynb
+!telluric_check.ipynb
