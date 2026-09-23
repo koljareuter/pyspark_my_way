@@ -8,7 +8,7 @@ import argparse
 
 from pyspark.utils import (fileutils, setuputils, obsutils)
 from pyspark.detector import fix_detector_levels
-from pyspark.calibration import make_spark_calibs
+from pyspark.calibration import make_spark_calibs, make_interchannel_ref
 from pyspark.cubes import (reconstruct, velocity_correct, illuminate, bkg_correct_2d)
 from pyspark.sky import subtract_sky
 
@@ -89,8 +89,20 @@ if __name__ == "__main__":
             continue
         master_logger.info('-- Finished calibrations')
         master_logger.info(' ')
-   
-   
+
+        # -- interchannel reference calibration --
+        if run_params['detector'].get('interchannel_correct', False):
+            master_logger.info('- Building interchannel reference')
+            try:
+                make_interchannel_ref(logger=dir_logger, subdir=folder, obsband=band,
+                                      outputdir=procdir)
+            except Exception:
+                break_check('interchannel reference', master_logger)
+                continue
+            master_logger.info('-- Finished interchannel reference')
+            master_logger.info(' ')
+
+
         # -- detector corrections ----------------
         master_logger.info('- Running detector corrections')
         
@@ -103,8 +115,8 @@ if __name__ == "__main__":
            run_params['detector']['picture_correct'] or \
            run_params['detector']['interchannel_correct']:
             try:
-                fix_detector_levels([frame for frame, type in frames], subdir=folder, 
-                        logger=dir_logger, **run_params['detector'])
+                fix_detector_levels([frame for frame, type in frames], subdir=folder,
+                        obsband=band, logger=dir_logger, **run_params['detector'])
             except:
                 print('----detector correction failed')
                 break_check('Det. correction', master_logger)

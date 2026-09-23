@@ -27,13 +27,13 @@ def make_interchannel_ref(logger=None, subdir=None, obsband=None, **kwargs):
    
     #open up the badpixel dark frames and read them in
     badpixel_mask = np.zeros((3,2048,2048), dtype=bool)
-    with fits.open(os.path.join(caldir, 'badpixel_dark.fits')) as ffile:
+    with fits.open(os.path.join(caldir, 'BADPIXEL_DARK.fits')) as ffile:
         for detector in range(3):
             tframe = np.array(ffile[detector+1].data, dtype=int)
             badpixel_mask[detector,:,:] = (tframe == 1)
 
     #fetch rotator angles and filled extensions from the master flat file
-    flat_file = fits.open(os.path.join(caldir, 'master_flat_{0}{0}{0}.fits'.format(obsband)))
+    flat_file = fits.open(os.path.join(caldir, 'MASTER_FLAT_{0}{0}{0}.fits'.format(obsband.upper())))
     rotators = get_cal_rotator(flat_file)#[0]
 
     islice_mask = np.zeros((3,2048,2048), dtype=bool)
@@ -113,7 +113,7 @@ def generate_channel_cube(logger=None, subdir=None, obsband=None, **kwargs):
     caldir = os.path.join(kwargs['outputdir'], subdir, 'calib')
 
     #fetch rotator angles and filled extensions from the master flat file
-    flat_file = fits.open(os.path.join(caldir, 'master_flat_{0}{0}{0}.fits'.format(obsband)))
+    flat_file = fits.open(os.path.join(caldir, 'MASTER_FLAT_{0}{0}{0}.fits'.format(obsband.upper())))
     pro_naangles = get_cal_rotator(flat_file)
     nrot = len(pro_naangles)
     flat_file.close()
