@@ -195,7 +195,7 @@ if __name__ == "__main__":
         if run_params['cubes'].get('telluric_in_sof', False):
             master_logger.info('- Applying telluric correction')
             ecode = telluric_correct(logger=dir_logger, subdir=folder, obsband=band,
-                                     rawdir=rawdir, **run_params['cubes'])
+                                     **run_params['cubes'])
             if ecode:
                 break_check('telluric correction', master_logger)
                 continue
