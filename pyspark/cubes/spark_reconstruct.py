@@ -50,18 +50,6 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
         ofile.write('{0} WAVE_BAND\n'.format(os.path.join(static_cal, 'kmos_wave_band.fits')))
         if use_oh:
             ofile.write('{0} OH_SPEC\n'.format(os.path.join(static_cal, 'kmos_oh_spec_{0}.fits'.format(obsband.lower()))))
-        if telluric_in_sof:
-            # TELLURIC files are raw data — look in rawdir, not the procdir
-            # that inputdir points to for the cubes stage
-            tel_dir = kwargs.get('rawdir', kwargs['inputdir'])
-            tel_matches = glob.glob(os.path.join(tel_dir, subdir, '*TELLURIC*{0}*'.format(obsband.upper())))
-            if tel_matches:
-                ofile.write('{0} TELLURIC\n'.format(tel_matches[0]))
-                if logger is not None:
-                    logger.debug('-- Added {0} TELLURIC'.format(tel_matches[0]))
-            elif logger is not None:
-                logger.warning('-- telluric_in_sof=True but no TELLURIC file found in {0}'.format(
-                    os.path.join(tel_dir, subdir)))
 
         if logger is not None:
             logger.debug('-- Added {0} XCAL'.format(os.path.join(caldir, 'XCAL_{0}{0}{0}.fits'.format(obsband.upper()))))

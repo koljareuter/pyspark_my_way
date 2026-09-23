@@ -9,7 +9,8 @@ import argparse
 from pyspark.utils import (fileutils, setuputils, obsutils)
 from pyspark.detector import fix_detector_levels
 from pyspark.calibration import make_spark_calibs, make_interchannel_ref
-from pyspark.cubes import (reconstruct, velocity_correct, illuminate, bkg_correct_2d)
+from pyspark.cubes import (reconstruct, velocity_correct, illuminate, bkg_correct_2d,
+                           telluric_correct)
 from pyspark.sky import subtract_sky
 
 from multiprocessing import freeze_support#, set_start_method
@@ -181,7 +182,7 @@ if __name__ == "__main__":
   
         # -- barycentric velocity correction -----
         master_logger.info('- Applying heliocentric correction')
-        ecode = velocity_correct(logger=dir_logger, subdir=folder, obsband=band, 
+        ecode = velocity_correct(logger=dir_logger, subdir=folder, obsband=band,
                                  search_suffix='s_i_bkg2d', **run_params['cubes'])
         if ecode:
             break_check('velocity correction', master_logger)
@@ -190,6 +191,16 @@ if __name__ == "__main__":
         master_logger.info(' ')
 
 
+        # -- telluric correction (Python step; _rv.fits → _rv_tell.fits) -----
+        if run_params['cubes'].get('telluric_in_sof', False):
+            master_logger.info('- Applying telluric correction')
+            ecode = telluric_correct(logger=dir_logger, subdir=folder, obsband=band,
+                                     rawdir=rawdir, **run_params['cubes'])
+            if ecode:
+                break_check('telluric correction', master_logger)
+                continue
+            master_logger.info('-- Finished telluric correction')
+            master_logger.info(' ')
 
 
         master_logger.info('- Finished reducing {0} '.format(folder))
