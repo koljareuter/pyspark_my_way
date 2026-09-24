@@ -15,7 +15,6 @@ from astropy.coordinates import (SkyCoord, EarthLocation, solar_system,
 from astropy.time import Time
 
 
-from ..utils.interpolation import interpolate
 from ..utils.fileutils import (get_obs_exposures, duplicate)
 from ..utils.obsutils import reconstruct_wave
 
@@ -141,7 +140,8 @@ def rvcorr_cube(wave_in, array_in, vbary):
             old_spec = array_in[:, ix, iy]
             goodpix = goodpix_in[:, ix, iy]
             if np.count_nonzero(goodpix):
-                new_spec = interpolate(wave_in, wave_rvcorr, old_spec)
+                new_spec = np.interp(wave_in, wave_rvcorr, old_spec,
+                                     left=np.nan, right=np.nan)
                 new_spec[~goodpix | ~np.isfinite(new_spec)] = np.nan
                 array_out[:,ix,iy] = new_spec
     
