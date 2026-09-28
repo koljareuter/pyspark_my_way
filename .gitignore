@@ -90,6 +90,7 @@ esorex.log
 .logfile
 obj_sky_table.txt
 *.sof
+*.pdf
 
 # KMOS data directories (OB trees, processing output, archives)
 kmos_ob_*/
