@@ -59,6 +59,9 @@ FIELD_CATALOGS = {
         ("cosmos.cosmos_deimos_redshift", "id", "ra", "dec", "zspec", "qf", "spec"),
         ("cosmos2020c", "id", "ra", "dec", "lp_zbest", "lp_type", "photo"),
     ],
+    # Canonical name aliases — any field whose header name contains "cosmos"
+    # but differs from the key above (e.g. cosmos_0.6_0.8_h21.4.cat) is
+    # handled by the normalize_field() call in main().
     "cdfs_targets_2.cat": [
         # MUSYC (ECDFS) carries both a compiled best spec-z and an EAzY
         # photo-z in the same table -- checked twice, spec-z first.
@@ -189,7 +192,14 @@ def main():
         ra_lo, ra_hi = min(ras) - BOX_MARGIN_DEG, max(ras) + BOX_MARGIN_DEG
         dec_lo, dec_hi = min(decs) - BOX_MARGIN_DEG, max(decs) + BOX_MARGIN_DEG
 
-        catalogs = FIELD_CATALOGS.get(field)
+        # Normalize field name: variant catalog names map to the canonical key
+        canonical = field
+        if canonical not in FIELD_CATALOGS:
+            if "cosmos" in canonical.lower():
+                canonical = "cosmos"
+            elif "cdfs" in canonical.lower() or "ecdfs" in canonical.lower():
+                canonical = "cdfs_targets_2.cat"
+        catalogs = FIELD_CATALOGS.get(canonical)
 
         if catalogs:
             # IRSA TAP path for COSMOS / CDFS fields
