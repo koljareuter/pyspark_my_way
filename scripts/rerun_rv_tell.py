@@ -23,14 +23,22 @@ if __name__ == '__main__':
     parser.add_argument('--skip-pattern', type=str, default=None,
                         help='Skip OB folders whose name contains this string '
                              '(e.g. "KMOS.2026-01" to skip January OBs)')
+    parser.add_argument('--all-subdirs', action='store_true',
+                        help='Ignore subdirs from config; scan procdir for all KMOS.* folders')
     args = parser.parse_args()
 
     master_logger = setuputils.set_logging(logbase='master_rv_tell', log_level=3)
     run_params = setuputils.set_config(args.parameter_file, logger=master_logger)
 
     procdir = run_params['procdir']
-    folders = run_params['subdirs']
     bands   = run_params['obsband']
+
+    if args.all_subdirs:
+        folders = sorted(f for f in os.listdir(procdir)
+                         if f.startswith('KMOS.') and os.path.isdir(os.path.join(procdir, f)))
+        master_logger.info('--all-subdirs: found {0} folders in {1}'.format(len(folders), procdir))
+    else:
+        folders = [f for f in run_params['subdirs'] if f.strip()]
 
     for band in bands:
         master_logger.info('### Band: {0} ###'.format(band))
