@@ -67,6 +67,10 @@ def main():
     rawdir, procdir = cp.get("pathing", "rawdir"), cp.get("pathing", "procdir")
     subdirs = [s.strip() for s in re.split(",|\n", cp.get("pathing", "subdirs").strip()) if s.strip()]
     svd = cp.get("cubes", "svd_path")
+    # rebuild mode: cubes are reconstructed from raw frames, so sky/ need not exist yet,
+    # but the reconstruction calibrations must
+    rebuild = cp.has_option("cubes", "reconstruct_cubes") and \
+        cp.get("cubes", "reconstruct_cubes").strip() == "True"
 
     problems = []
     # ── corrected basis ──────────────────────────────────────────────────────
@@ -78,7 +82,8 @@ def main():
                 problems.append("svd_path HDU1 (mean) is NOT zero: %s" % svd)
             if band not in os.path.basename(svd):
                 problems.append("svd_path does not look like a %s basis: %s" % (band, svd))
-    print("band %s   %d OB folders   basis %s" % (band, len(subdirs), svd))
+    print("band %s   %d OB folders   basis %s%s" % (band, len(subdirs), svd,
+          "   [rebuild: cubes reconstructed from raw, sky/ not required]" if rebuild else ""))
     print("%-30s %6s %6s %6s %6s %6s  %s" % ("OB folder", "raw", "obj", "sky", "illum", "rv", "status"))
 
     n_ok = 0
@@ -93,10 +98,15 @@ def main():
         issues = []
         if raw == 0:
             issues.append("no raw frames")
-        if n_obj == 0:
-            issues.append("no object cubes in sky/")
-        if n_sky == 0:
-            issues.append("no sky cubes in sky/")
+        if rebuild:
+            for cal in ("XCAL", "YCAL", "LCAL"):
+                if not os.path.isfile(os.path.join(ob, "calib", "%s_%s.fits" % (cal, bbb))):
+                    issues.append("%s missing" % cal)
+        else:
+            if n_obj == 0:
+                issues.append("no object cubes in sky/")
+            if n_sky == 0:
+                issues.append("no sky cubes in sky/")
         if not flat:
             issues.append("MASTER_FLAT missing")
         if illum == 0:

@@ -62,9 +62,10 @@ so only a small change is expected there; YJ is left unchanged):
 |---|---|
 | `pyspark/data/ZAPv2_SVD_IZ_n500004_nomean.fits` | IZ basis, HDU1 (mean) = 0, all else bit-identical |
 | `pyspark/data/ZAPv2_SVD_H_n500004_nomean.fits`  | H basis, HDU1 (mean) = 0, all else bit-identical |
-| `scripts/kmos_server_resky_IZ.cfg` | 83 IZ OB folders, sky subtraction onward, `svd_path` = IZ nomean basis |
+| `scripts/kmos_server_resky_IZ.cfg` | 76 IZ OB folders, sky subtraction onward, `svd_path` = IZ nomean basis |
+| `scripts/kmos_server_resky_IZ_rebuild.cfg` | 7 IZ OBs (2026-01-13/14) whose un-sky-subtracted cubes are no longer in `sky/`: detector correction + cube reconstruction from raw, then ZAP with the nomean basis |
 | `scripts/kmos_server_resky_H.cfg`  | 18 H OB folders, sky subtraction onward, `svd_path` = H nomean basis |
-| `scripts/check_resky_ready.py` | preflight: basis, `sky/` cubes, calib files, raw frames; `--backup` |
+| `scripts/check_resky_ready.py` | preflight: basis, `sky/` cubes (or XCAL/YCAL/LCAL if `reconstruct_cubes = True`), calib files, raw frames; `--backup` |
 
 Verified locally: the IZ nomean file reproduces the tested variant exactly (Hα S/N of
 CDFS 23420 in the test frame 26.1 vs 9.5 with the bundled basis); `set_config` parses
@@ -76,9 +77,12 @@ One cfg per band on purpose: `svd_path` applies to every band of a run.
 # on hqempower1, from ~/pyspark_my_way  (after the files are committed and pushed)
 git pull
 python scripts/check_resky_ready.py scripts/kmos_server_resky_IZ.cfg --backup
+python scripts/check_resky_ready.py scripts/kmos_server_resky_IZ_rebuild.cfg --backup
 python scripts/check_resky_ready.py scripts/kmos_server_resky_H.cfg  --backup
 nohup env PYTHONPATH=. python scripts/reduce_kmos.py -p scripts/kmos_server_resky_IZ.cfg > resky_IZ.out 2>&1 &
-# when IZ has finished:
+# when that has finished:
+nohup env PYTHONPATH=. python scripts/reduce_kmos.py -p scripts/kmos_server_resky_IZ_rebuild.cfg > resky_IZ_rebuild.out 2>&1 &
+# when that has finished:
 nohup env PYTHONPATH=. python scripts/reduce_kmos.py -p scripts/kmos_server_resky_H.cfg  > resky_H.out 2>&1 &
 ```
 
