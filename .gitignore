@@ -96,6 +96,10 @@ obj_sky_table.txt
 kmos_ob_*/
 kmos_*_proc/
 kmos_*_sorted*/
+kmos_proc_and_comb_server
+kmos_proc_server_comb
+
+
 *.tar.gz
 
 # local config variants
