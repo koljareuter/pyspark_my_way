@@ -76,7 +76,7 @@ def set_config(configfile=None, logger=None):
                   'rawdir': input_params.get('pathing', 'rawdir'),
                   'procdir': input_params.get('pathing', 'procdir'),
                   'subdirs': folders,
-                  } 
+                  }
     
     if input_params.has_section('detector'):
         ddict = {'inputdir': input_params.get('pathing','rawdir'),

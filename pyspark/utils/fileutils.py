@@ -314,7 +314,7 @@ def get_obs_exposures(inputdir=None, subdir=None, obsband=None, prefix=None,
             sline = line.decode('utf-8').strip().split(None)
             #print(os.path.split(sline[0])[1].split('_'), len(os.path.split(sline[0])[1].split('_')), expected_split)
             if len(os.path.split(sline[0])[1].split('_')) == expected_split:
-                if all([True if ent not in ['ARM1_SKY','ARM2_SKY','ARM3_SKY'] else False
+                if all([True if not ent.endswith('_SKY') else False
                         for ent in sline[-3:]]) and sline[2] == obsband:
                     exposures.append((os.path.join(fpath, sline[0]), 'OBJ', time.mktime(time.strptime(sline[1], dateobsfmt)), float(sline[3])))
                 elif sline[2] == obsband:

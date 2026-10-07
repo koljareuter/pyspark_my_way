@@ -128,7 +128,7 @@ def sort_files(groups, dest_root, use_copy=False):
             if use_copy:
                 shutil.copy2(real_path, dest_path)
             else:
-                os.symlink(os.path.abspath(real_path), dest_path)
+                os.symlink(os.path.realpath(real_path), dest_path)
 
 
 def write_filelist(groups, filelist_path):
