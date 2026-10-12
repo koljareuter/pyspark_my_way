@@ -8,10 +8,15 @@
 # Files land in:
 #   kmos_proc_server_comb/<OB_name>/<timestamp>/DATACUBE_COMBINED_*.fits
 # (colons replaced by dashes for Windows/NTFS compatibility)
+#
+# Other EDPS export folder / local target (keep re-reduced results separate,
+# otherwise old and new combinations of the same OB end up side by side):
+#   REMOTE_BASE=/local_storage/KOLJA/res_new_IZ_full_2 LOCAL_BASE=kmos_comb_new_IZ_full \
+#       bash scripts/download_combined.sh
 
 SERVER=kreuter@hqempower1
-REMOTE_BASE=/local_storage/KOLJA/tmp_results
-LOCAL_BASE=kmos_proc_and_comb_server
+REMOTE_BASE=${REMOTE_BASE:-/local_storage/KOLJA/tmp_results}
+LOCAL_BASE=${LOCAL_BASE:-kmos_proc_and_comb_server}
 
 
 if command -v ssh.exe &>/dev/null; then SSH=ssh.exe; else SSH=ssh; fi
