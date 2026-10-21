@@ -16,13 +16,30 @@ static_cal = os.environ['KMOS_CALIB']
 
 def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
                 combine=False, reconstruct_cubes=True, use_oh=True,
-                telluric_in_sof=False, **kwargs):
+                telluric_in_sof=False, recipe_dir=None, lcorr_degree=None, **kwargs):
 
     """ Reconstruct science cubes using spark
+
+    Optional [cubes] settings for the OH wavelength correction (docs/oh-lcorr-linear-rereduction.md):
+      oh_spec_<band>  OH_SPEC file instead of $KMOS_CALIB/kmos_oh_spec_<band>.fits (e.g. oh_spec_iz)
+      recipe_dir      esorex --recipe-dir, e.g. the KMOS DRP built with the KMOS_LCORR_DEGREE patch
+      lcorr_degree    polynomial degree of the correction (DRP default 2); needs the patched recipe_dir
     """
 
     if not reconstruct_cubes:
         return 0
+
+    #OH reference spectrum and polynomial degree of the OH wavelength correction
+    oh_spec = kwargs.get('oh_spec_{0}'.format(obsband.lower()),
+                         os.path.join(static_cal, 'kmos_oh_spec_{0}.fits'.format(obsband.lower())))
+    if use_oh and not os.path.isfile(oh_spec):
+        raise IOError('OH_SPEC file not found: {0}'.format(oh_spec))
+    if recipe_dir and not os.path.isdir(recipe_dir):
+        raise IOError('recipe_dir not found: {0}'.format(recipe_dir))
+    if lcorr_degree is not None and not recipe_dir:
+        raise ValueError('lcorr_degree needs recipe_dir (the patched KMOS DRP); the standard DRP ignores it')
+    esorex_opts = '--recipe-dir={0}'.format(recipe_dir) if recipe_dir else ''
+    lcorr_env = {'KMOS_LCORR_DEGREE': str(int(lcorr_degree))} if lcorr_degree is not None else None
 
     #path for the calibration directory
     caldir = os.path.join(kwargs['inputdir'], subdir, 'calib')
@@ -49,7 +66,7 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
         ofile.write('{0} MASTER_FLAT\n'.format(os.path.join(caldir, 'MASTER_FLAT_{0}{0}{0}.fits'.format(obsband.upper()))))
         ofile.write('{0} WAVE_BAND\n'.format(os.path.join(static_cal, 'kmos_wave_band.fits')))
         if use_oh:
-            ofile.write('{0} OH_SPEC\n'.format(os.path.join(static_cal, 'kmos_oh_spec_{0}.fits'.format(obsband.lower()))))
+            ofile.write('{0} OH_SPEC\n'.format(oh_spec))
 
         if logger is not None:
             logger.debug('-- Added {0} XCAL'.format(os.path.join(caldir, 'XCAL_{0}{0}{0}.fits'.format(obsband.upper()))))
@@ -58,7 +75,7 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
             logger.debug('-- Added {0} MASTER_FLAT'.format(os.path.join(caldir, 'MASTER_FLAT_{0}{0}{0}.fits'.format(obsband.upper()))))
             logger.debug('-- Added {0} WAVE_BAND'.format(os.path.join(static_cal, 'kmos_wave_band.fits')))
             if use_oh:
-                logger.debug('-- Added {0} OH_SPEC'.format(os.path.join(static_cal, 'kmos_oh_spec_{0}.fits'.format(obsband.lower()))))
+                logger.debug('-- Added {0} OH_SPEC'.format(oh_spec))
 
 
     #control args
@@ -79,7 +96,8 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
     #execute spark script
     if logger is not None:
         logger.debug('- Executing reconstruction')
-    ecode = run_spark('kmos_sci_red', args=routine_args, sof=outfile, logger=logger)
+    ecode = run_spark('kmos_sci_red', args=routine_args, sof=outfile, logger=logger,
+                      esorex_opts=esorex_opts, env=lcorr_env)
     if logger is not None:
         logger.debug('-- Complete')
 

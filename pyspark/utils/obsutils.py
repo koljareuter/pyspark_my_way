@@ -167,17 +167,23 @@ def get_obs_extensions(obs_file):
     return filled_ifus
 
 
-def run_spark(routine, args='', sof=None, logger=None):
-    
-    """ Execute SPARK routine given by cmd.
+def run_spark(routine, args='', sof=None, logger=None, esorex_opts='', env=None):
+
+    """ Execute SPARK routine given by cmd.  esorex_opts go before the recipe
+    name (e.g. --recipe-dir=...), env adds environment variables for this call only.
     """
 
     cmd = 'esorex {0} {1} {2}'.format(routine, args, sof)
-    if logger is not None: 
+    if esorex_opts:
+        cmd = 'esorex {0} {1} {2} {3}'.format(esorex_opts, routine, args, sof)
+    if logger is not None:
         logger.debug('- Executing command: {0}'.format(cmd))
-    
+        if env:
+            logger.debug('- with environment {0}'.format(env))
+
 #    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, bufsize=1, shell=True)
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, bufsize=-1, shell=True)
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, bufsize=-1, shell=True,
+                         env=dict(os.environ, **env) if env else None)
     for line in iter(p.stdout.readline, b''):
         if logger is not None:
             logger.debug(line.decode('utf-8').strip())
