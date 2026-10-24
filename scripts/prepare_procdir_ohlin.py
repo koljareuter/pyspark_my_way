@@ -13,7 +13,9 @@ Usage (on hqempower1, from ~/pyspark_my_way):
     python scripts/prepare_procdir_ohlin.py scripts/kmos_server_ohlin_*.cfg              # create the links
     python scripts/prepare_procdir_ohlin.py scripts/kmos_server_ohlin_*.cfg --status     # after/while reducing
 --status lists per OB the dc frames, sky/ cubes, final *_s_i_bkg2d_rv.fits cubes, the OH_SPEC in the saved sof and the
-polynomial degree the patched DRP reported in the OB log (must equal lcorr_degree of the cfg).
+polynomial degree the patched DRP reported in the OB log (must equal lcorr_degree of the cfg); for the noise-fix
+configs (kmos_server_hyb_*.cfg) also the row-corrected dcr_ frames and the skysub_det/ cubes of the hybrid sky
+subtraction (docs/hybrid-sky.md; 0 for OBs whose SKY frames are at the OBJECT rotator angle).
 Exit code 1 if an OB lacks dc frames or calibrations for its band, or a path conflict was found.
 """
 import argparse
@@ -86,12 +88,14 @@ def status(cfg):
     band = bands[0]
     want = cubes.get("lcorr_degree")
     print("%s (%s, lcorr_degree %s): %s" % (cfg, band, want, dst_root))
-    print("%-30s %3s %4s %4s  %-28s %s" % ("OB", "dc", "sky", "rv", "OH_SPEC", "degree in log"))
+    print("%-30s %3s %4s %4s %4s %4s  %-28s %s" % ("OB", "dc", "dcr", "sky", "det", "rv", "OH_SPEC", "degree in log"))
     tot = Counter()
     for ob in obs:
         d = os.path.join(dst_root, ob)
         ndc = len(glob.glob(os.path.join(d, "dc_KMOS.*.fits")))
+        ndcr = len(glob.glob(os.path.join(d, "dcr_KMOS.*.fits")))
         nsky = len(glob.glob(os.path.join(d, "sky", "SCI_RECONSTRUCTED_*.fits")))
+        ndet = len(glob.glob(os.path.join(d, "skysub_det", "SCI_RECONSTRUCTED_*.fits")))
         nrv = len(glob.glob(os.path.join(d, "science", "SCI_RECONSTRUCTED_*_s_i_bkg2d_rv.fits")))
         oh = "-"
         for sof in sorted(glob.glob(os.path.join(d, "sof", "*_cubes_*.sof"))):
@@ -102,11 +106,13 @@ def status(cfg):
             with open(log, errors="replace") as f:
                 deg |= set(re.findall(r"OH lambda correction: polynomial degree (\d+)", f.read()))
         degs = ",".join(sorted(deg)) or "-"
-        flag = "" if (want is None or degs == str(want)) else "   <-- expected %s" % want
-        print("%-30s %3d %4d %4d  %-28s %s%s" % (ob, ndc, nsky, nrv, oh, degs, flag))
-        tot["ob"] += 1; tot["sky"] += nsky > 0; tot["rv"] += nrv > 0; tot["bad_degree"] += bool(flag)
-    print("%d OBs: %d with sky/ cubes, %d with final cubes, %d with a wrong or missing degree in the log" % (
-        tot["ob"], tot["sky"], tot["rv"], tot["bad_degree"]))
+        started = bool(deg) or nsky > 0          # no degree line and no sky/ cubes: not reduced yet
+        flag = "" if (not started or want is None or degs == str(want)) else "   <-- expected %s" % want
+        print("%-30s %3d %4d %4d %4d %4d  %-28s %s%s" % (ob, ndc, ndcr, nsky, ndet, nrv, oh, degs, flag))
+        tot["ob"] += 1; tot["started"] += started; tot["sky"] += nsky > 0; tot["rv"] += nrv > 0; tot["det"] += ndet
+        tot["bad_degree"] += bool(flag)
+    print("%d OBs: %d started, %d with sky/ cubes, %d with final cubes, %d started with a wrong or missing degree; "
+          "%d skysub_det cubes" % (tot["ob"], tot["started"], tot["sky"], tot["rv"], tot["bad_degree"], tot["det"]))
 
 
 def main():

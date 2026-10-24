@@ -8,10 +8,12 @@ import argparse
 
 from pyspark.utils import (fileutils, setuputils, obsutils)
 from pyspark.detector import fix_detector_levels
+from pyspark.detector.row_commonmode import row_commonmode_ob
 from pyspark.calibration import make_spark_calibs, make_interchannel_ref
 from pyspark.cubes import (reconstruct, velocity_correct, illuminate, bkg_correct_2d,
                            telluric_correct)
 from pyspark.sky import subtract_sky
+from pyspark.cubes.wcssnap import snap_wcs
 
 from multiprocessing import freeze_support#, set_start_method
 freeze_support()
@@ -111,13 +113,18 @@ if __name__ == "__main__":
         frames = fileutils.get_sof_list(filetype='science', subdir=folder, 
                 inputdir=rawdir, obsband=band)
    
-        #apply detector fix(es)
+        #apply detector fix(es); with the row common-mode correction on, they write the
+        #row_commonmode_input prefix and the row step writes the [detector] prefix
+        row_cm = run_params['detector'].get('row_commonmode_correct', False)
+        det_kw = dict(run_params['detector'])
+        if row_cm:
+            det_kw['prefix'] = det_kw.get('row_commonmode_input', 'dc')
         if run_params['detector']['channel_correct'] or \
            run_params['detector']['picture_correct'] or \
            run_params['detector']['interchannel_correct']:
             try:
                 fix_detector_levels([frame for frame, type in frames], subdir=folder,
-                        obsband=band, logger=dir_logger, **run_params['detector'])
+                        obsband=band, logger=dir_logger, **det_kw)
             except:
                 print('----detector correction failed')
                 break_check('Det. correction', master_logger)
@@ -128,7 +135,20 @@ if __name__ == "__main__":
         else:
             master_logger.info('-- Detector corrections skipped')
             master_logger.info(' ')
-   
+
+        # -- row common-mode correction (optional, docs/noise-improvements-2026-10.md) --
+        if row_cm:
+            master_logger.info('- Running row common-mode correction')
+            try:
+                row_commonmode_ob(subdir=folder, obsband=band, logger=dir_logger,
+                                  **run_params['detector'])     # outputdir = procdir is in there
+            except Exception:
+                dir_logger.exception('row common-mode correction failed')
+                break_check('row common-mode correction', master_logger)
+                continue
+            master_logger.info('-- Finished row common-mode correction')
+            master_logger.info(' ')
+
    
    
         # -- reconstruct -----------------------
@@ -189,6 +209,20 @@ if __name__ == "__main__":
             continue
         master_logger.info('-- Finished heliocentric correction')
         master_logger.info(' ')
+
+        # -- integer-pixel registration for the combination (optional, docs/noise-improvements-2026-10.md) --
+        if run_params['cubes'].get('snap_wcs', False):
+            master_logger.info('- Snapping IFU WCS for integer-shift combination')
+            try:
+                ecode = snap_wcs(logger=dir_logger, subdir=folder, obsband=band, **run_params['cubes'])
+            except Exception:
+                dir_logger.exception('snap_wcs failed')
+                ecode = 1
+            if ecode:
+                break_check('snap_wcs', master_logger)
+                continue
+            master_logger.info('-- Finished snap_wcs')
+            master_logger.info(' ')
 
 
         # -- telluric correction (Python step; _rv.fits → _rv_tell.fits) -----

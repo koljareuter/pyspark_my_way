@@ -16,7 +16,8 @@ static_cal = os.environ['KMOS_CALIB']
 
 def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
                 combine=False, reconstruct_cubes=True, use_oh=True,
-                telluric_in_sof=False, recipe_dir=None, lcorr_degree=None, **kwargs):
+                telluric_in_sof=False, recipe_dir=None, lcorr_degree=None, sky_cal_angle='own',
+                hybrid_sky=False, hybrid_min_dangle=20., hybrid_bands='IZ', **kwargs):
 
     """ Reconstruct science cubes using spark
 
@@ -24,6 +25,14 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
       oh_spec_<band>  OH_SPEC file instead of $KMOS_CALIB/kmos_oh_spec_<band>.fits (e.g. oh_spec_iz)
       recipe_dir      esorex --recipe-dir, e.g. the KMOS DRP built with the KMOS_LCORR_DEGREE patch
       lcorr_degree    polynomial degree of the correction (DRP default 2); needs the patched recipe_dir
+    and for the calibration angle of the SKY frames (docs/noise-improvements-2026-10.md):
+      sky_cal_angle   own (default) | object: reconstruct each SKY frame with the calibrations of the
+                      OBJECT frames it is subtracted from (only for the O - S + ZAP route)
+    and for the hybrid sky subtraction (docs/hybrid-sky.md):
+      hybrid_sky         True: also write the DRP detector-level sky-subtracted cube of every OBJECT
+                         frame whose nearest SKY frame is more than hybrid_min_dangle (deg, default 20)
+                         away in rotator angle to <OB>/skysub_det/ (used by subtract_sky)
+      hybrid_bands       bands the hybrid is used for (default IZ; validated only there, H gets worse)
     """
 
     if not reconstruct_cubes:
@@ -47,14 +56,24 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
     #get list of science frames for processing
     frames = get_sof_list(filetype='science', subdir=subdir, obsband=obsband, **kwargs)
 
+    #SKY frames with the OBJECT frames' calibration angle: angle-edited copies go into the SOF
+    sky_cal_angle = str(sky_cal_angle).strip().lower()
+    if sky_cal_angle not in ('own', 'object'):
+        raise ValueError('sky_cal_angle must be own or object, got {0!r}'.format(sky_cal_angle))
+    sof_frames, sky_plan = [frame for frame, _ in frames], {}
+    skyangle_dir = os.path.join(kwargs['outputdir'], subdir, 'skyangle')
+    if sky_cal_angle == 'object' and sky_method not in ('spark', 'edps'):
+        from .sky_calangle import write_sky_copies
+        sof_frames, sky_plan = write_sky_copies(sof_frames, skyangle_dir, obsband=obsband, logger=logger)
+
     #write temporary .sof file to feed to
     outfile = '{0}.sof'.format(id_gen())
-    
+
     if logger is not None:
         logger.debug('- Writing science frames to temporary file {0}'.format(outfile))
 
     with open(outfile, 'wt') as ofile:
-        for frame, _ in frames:
+        for frame in sof_frames:
             ofile.write('{0} SCIENCE\n'.format(frame))
             if logger is not None:
                 logger.debug('-- Added {0} SCIENCE'.format(frame))
@@ -112,6 +131,9 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
         frame_out2 = 'make_image_SCI_RECONSTRUCTED_{0}'.format(frame.split('/')[-1])
         if os.path.isfile(frame_out):
             patch_header(frame_out, hdr_keys, frame)
+            if frame in sky_plan:
+                from .sky_calangle import restore_sky_header
+                restore_sky_header(frame_out, sky_plan[frame][0], sky_plan[frame][1])
             if sky_method == 'spark':
                 # kmos_sci_red already sky-subtracted; rename to *_s.fits and
                 # send directly to science/ so illuminate() can find it
@@ -124,12 +146,26 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
         if os.path.isfile(frame_out2):
             clean_move(frame_out2, os.path.join(kwargs['outputdir'], subdir, 'sky'))
 
+    #hybrid sky subtraction: detector-level O - S for the OBJECT frames with a rotator mismatch,
+    #same calibrations, OH_SPEC, recipe and lcorr degree as above
+    hybrid_band = obsband.upper() in [b.strip().upper() for b in str(hybrid_bands).split(',')]
+    if hybrid_sky and sky_method not in ('spark', 'edps') and hybrid_band:
+        from .skysub_det import skysub_det
+        with open(outfile) as fh:
+            cal_lines = [line.strip() for line in fh if line.strip() and not line.strip().endswith(' SCIENCE')]
+        skysub_det([frame for frame, _ in frames], cal_lines, kwargs['outputdir'], subdir,
+                   min_dangle=hybrid_min_dangle, esorex_opts=esorex_opts, env=lcorr_env, logger=logger)
+
     #move the .sof file for logging
     clean_move(outfile, os.path.join(kwargs['outputdir'], subdir, 'sof', '{0}_cubes_{1}.sof'\
             .format(subdir, obsband.lower())))
    
     #cleanup
     [os.remove(x) for x in glob.glob('obj_sky_table*.txt')]
+    for frame in sky_plan:          # temporary angle-edited SKY copies written above
+        copy = os.path.join(skyangle_dir, os.path.basename(frame))
+        if os.path.isfile(copy):
+            os.remove(copy)
 
     return 0
 
