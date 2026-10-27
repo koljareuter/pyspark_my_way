@@ -167,11 +167,15 @@ OMP_NUM_THREADS=1 nice -n 10 /local_storage/KOLJA/ohspec_census/venv/bin/python 
 
 # 6. combination: NEW EDPS input folders (--out is mandatory, the default edps_in_<BAND> holds the current links)
 for B in IZ YJ H; do
-  python scripts/make_edps_input.py $B --procdir /local_storage/KOLJA/PROCDIR_OHLIN --out /local_storage/KOLJA/edps_in_ohlin_$B
+  python scripts/make_edps_input.py $B --procdir /local_storage/KOLJA/PROCDIR_OHLIN --out /local_storage/KOLJA/edps_in_ohlin_$B \
+         --min-date 2026-10-21
 done
-#    run EDPS cubes_combination on edps_in_ohlin_<BAND> as before, then collect the clean jobs of this run:
-python scripts/edps_pick_jobs.py --band IZ --since <date of step 6> --copy /local_storage/KOLJA/res_ohlin_IZ   # same for YJ, H
-#    (do not run other combinations meanwhile, or check in the report that the inputs are PROCDIR_OHLIN cubes)
+#    own EDPS job store for this run, as for EDPS_data_zapfix / EDPS_data_det3fix (keeps a backup of the setting):
+mkdir -p /home/kreuter/EDPS_data_ohlin
+sed -i.bak 's#^base_dir=.*#base_dir=/home/kreuter/EDPS_data_ohlin#' ~/.edps/application.properties
+#    restart edps-gui --port 5007, run cubes_combination on edps_in_ohlin_<BAND>, export the results to
+#    /local_storage/KOLJA/res_ohlin_<BAND> (layout <first frame>/<timestamp>/, as res_new_IZ_full_2), then check:
+python scripts/edps_pick_jobs.py --base /home/kreuter/EDPS_data_ohlin/KMOS/cubes_combination --band IZ   # YJ, H alike
 ```
 
 Locally (Windows/WSL, `pyspark_my_way`): download into new folders and correct the tellurics into a new mirror

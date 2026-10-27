@@ -13,6 +13,8 @@ PROCDIR, without touching any data:
 
   --backup   copy the current science/*_s_i_bkg2d_rv.fits of every OB to
              science_pre_zapfix/ (skipped where that copy already exists)
+  --backup-dir NAME   backup folder name inside each OB (default science_pre_zapfix;
+             use science_pre_det3fix for kmos_server_det3fix_IZ.cfg)
 
 Usage (on hqempower1, from ~/pyspark_my_way):
     python scripts/check_resky_ready.py scripts/kmos_server_resky_IZ.cfg [--backup]
@@ -55,7 +57,9 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("cfg")
     ap.add_argument("--backup", action="store_true",
-                    help="copy current science/*_s_i_bkg2d_rv.fits to science_pre_zapfix/")
+                    help="copy current science/*_s_i_bkg2d_rv.fits to the backup folder")
+    ap.add_argument("--backup-dir", default="science_pre_zapfix",
+                    help="backup folder name inside each OB folder (default science_pre_zapfix)")
     args = ap.parse_args()
 
     cp = configparser.ConfigParser()
@@ -118,7 +122,7 @@ def main():
         else:
             n_ok += 1
         if args.backup and rv:
-            bdir = os.path.join(ob, "science_pre_zapfix")
+            bdir = os.path.join(ob, args.backup_dir)
             os.makedirs(bdir, exist_ok=True)
             for f in rv:
                 dst = os.path.join(bdir, os.path.basename(f))
@@ -127,7 +131,7 @@ def main():
 
     print("\n%d/%d OB folders ready" % (n_ok, len(subdirs)))
     if args.backup:
-        print("backup of *_s_i_bkg2d_rv.fits → <OB>/science_pre_zapfix/ done")
+        print("backup of *_s_i_bkg2d_rv.fits → <OB>/%s/ done" % args.backup_dir)
     if problems:
         print("\nPROBLEMS:")
         for p in problems:

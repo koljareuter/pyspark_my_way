@@ -199,7 +199,7 @@ def salva(cube, filename):
 def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
             inputdir=None, suffix='s', tbsub=False, svd_path=None,
             sky_combine='nearest', sky_scale='none', sky_nan='renorm', hybrid_sky=False,
-            hybrid_min_dangle=20., **kwargs):
+            hybrid_min_dangle=20., hybrid_wing=0, **kwargs):
 
     for obj_exp, sky_exp, dit in matched_exposures:
         # sky_exp is either one SKY file (classic, from match_obj_sky) or a
@@ -324,7 +324,8 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
                         sub_cube = np.copy(ocube_corr) - np.copy(scube_corr)
                     elif use_hyb and rfile[ifu].data is not None and rfile[ifu].data.shape == ocube.shape:
                         lam = (np.arange(oz) + 1 - header['CRPIX3']) * header['CDELT3'] + header['CRVAL3']
-                        sub_cube = hybrid_ifu(ocube, scube, np.array(rfile[ifu].data), ifu, lam)
+                        sub_cube = hybrid_ifu(ocube, scube, np.array(rfile[ifu].data), ifu, lam,
+                                              wing=int(hybrid_wing))
                         sub_cube = sub_cube.astype(np.float32).astype(float)
                     else:
                         if use_hyb and logger is not None:
@@ -364,6 +365,7 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
                     sky_combine, len(sky_exp), sky_scale, sky_nan)
             if use_hyb:
                 ofile[0].header['HIERARCH ESO PYSPARK SKY HYBRID'] = (True, 'detector-level O-S + sky-only model')
+                ofile[0].header['HIERARCH ESO PYSPARK SKY HYBRID WING'] = (int(hybrid_wing), 'IFU-median in OH wings 2..W')
                 ofile[0].header['HISTORY'] = 'Sky: hybrid (DRP detector-level O-S + slitlet model of the sky-only term)'
 
 

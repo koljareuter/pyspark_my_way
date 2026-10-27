@@ -59,6 +59,8 @@ hybrid_sky = True
 hybrid_min_dangle = 20
 # bands the hybrid is used for (default IZ)
 hybrid_bands = IZ
+# OH-line wings: IFU-wide median of D in the planes 2..3 from a line core (default 0 = as first validated)
+hybrid_wing = 3
 ```
 Server run: docs/procdir-hyb-server-run.md (scripts/kmos_server_hyb_IZ.cfg).
 
@@ -106,6 +108,50 @@ Cost: one extra kmos_sci_red run per mismatched OB (about the time of the main r
 Expected gain: per-galaxy Hbeta S/N about x2 (x1.6-2.6) for the 79 of 123 IZ galaxies in mismatched lists
 (6-frame combinations; full combined cubes may gain more because the shared pattern grows with the number of
 frames). The inverse-variance Hbeta stack of all galaxies gains x1.08-1.24 (already dominated by cdfs/cosmos).
+
+## OH wings (`hybrid_wing`, 2026-10-27)
+
+The first server run (PROCDIR_HYB, IZ) showed the remaining weakness: in the wings of OH lines and on faint OH
+lines the hybrid left a residual that is the same in all slitlets and shared by the IFUs of a detector
+(correlation of the per-plane background between target cubes 0.36-0.69 in OH-wing planes, ~0 classic), so red
+target-aperture noise in those planes got 16-20 % worse in cosmos_0.6_0.8_h21.4 / h21.7 while everything else
+improved.
+
+**Cause.** model(D) uses the exact slitlet median of D only in the find_lines core grown by one plane; further out
+it uses the smooth template fit (g, S, g' times a linear function of lambda, one set per slitlet). The fit is
+dominated by the strongest lines and leaves most of the flank structure: from 2 planes from a core outward the
+residual is 85-90 % of the slitlet median of D. On a single frame the flank residual is within the noise of a
+slitlet median (a wider median mask or piecewise-linear coefficients only add noise or overfit), but it is common to
+all slitlets and frames, so it survives in the combined cube.
+
+**Fix.** In the planes 2..W from a core, use the high-passed IFU-wide median of D (~200 spaxels instead of the 14
+of a slitlet: noise about /3.7, sqrt(14)) instead of the template fit; core planes and all other planes as before.
+Every term still comes from D (SKY frame only), so the model stays independent of the target signal. The wing mask
+is grown only from finite core planes and without wrap-around at the band ends.
+
+**Choice of W = 3.** W = 5 also replaces planes 4-5 from a core; there the IFU median gains only above ~0.95 um
+(red window: noise W5/W3 x0.995) and costs +0.6-0.7 % in the Hbeta/[OIII] windows of the test galaxies (pooled 5x5
+apertures W5/W3 = 1.007 [0.983, 1.022] h21.4, 1.006 [1.002, 1.009] legac). W was chosen on the same two OBs it was
+validated on (in-sample); the first server run should be checked with the same correlation test.
+
+**Validation** (local, the two mismatched test OBs, row CM + hybrid, 6-frame esorex combinations; WSL
+`~/impl_test/wing`, `~/impl_test/e2e/comb/<OB>/{C,W0,W3,W5}`; numbers current -> W3 unless noted):
+- `hybrid_wing = 0` reproduces the previous output bit for bit (6/6 frames per OB). The hardened wing mask (finite
+  cores, no wrap-around) gives the same W = 3 cubes bit for bit on both OBs (no such band-end case there).
+- Cross-validated on D (fit on half of each slitlet's spaxels, scored on the other half, residual averaged over the
+  slitlets of an IFU): between-IFU correlation of the wing residual 0.45 -> 0.01 (h21.4) and 0.32 -> 0.02 (legac),
+  wing residual -17 % / -30 %.
+- Combined cubes, between-IFU correlation of the per-plane background (same detector): h21.4 wing mid
+  0.43 -> 0.03, wing red 0.36 -> 0.18 (W5 0.06), OH red 0.44 -> 0.15; legac wing mid/red 0.14/0.15 -> 0.00/0.05,
+  OH red 0.34 -> 0.03 (classic ~0 everywhere).
+- Target 5x5 aperture noise in wing planes: h21.4 x0.85 (mid), x0.80-0.88 (red); legac x0.98-1.00; OH-free
+  planes and edge spaxels unchanged (x0.99-1.03 / x1.000), 5-sigma tails x0.92-0.99 in the red OH and wing planes.
+  Hbeta/[OIII] windows of the test galaxies: x0.96 (h21.4), x0.99 (legac).
+- Per detector (planes 2-3 from a core only): detectors 1 and 3 carry the shared residual and gain strongly
+  (h21.4 x0.28-0.58 mid/red, x0.82-0.92 blue; legac detector 1 x0.47-0.81 mid/red); detector 2 has no shared
+  residual and gets nothing (x0.98-1.02), in the blue wing planes of h21.4 slightly worse (x1.04, 5 cubes). Kept
+  for all detectors: the loss is small against the gain and a per-detector switch would need a server-side test.
+- Flux: in-field star continua x0.9986-0.9999; 1168518 [OIII] x1.04 at S/N 7.7.
 
 ## Not for H; YJ untested
 

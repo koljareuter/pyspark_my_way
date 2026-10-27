@@ -84,9 +84,10 @@ def spark_flat(logger=None, subdir=None, obsband=None, **kwargs):
         ofile.write('{0} BADPIXEL_DARK\n'.format(badpixel_file))
         logger.debug('-- Added {0} BADPIXEL_DARK'.format(badpixel_file))
 
-    #control args
+    #control args, overridable via flat_args in the [calibration] cfg section
+    #(see docs/det3-iz-flat-bugfix.md)
     #routine_args = '-cmethod=median'
-    routine_args = '-cmethod=ksigma -badpix_thresh=10'
+    routine_args = kwargs.get('flat_args', '-cmethod=ksigma -badpix_thresh=10')
 
     #execute spark script
     logger.debug('- Executing kmos_flat')

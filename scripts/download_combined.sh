@@ -26,7 +26,7 @@ mkdir -p "$LOCAL_BASE"
 
 echo "=== Querying server for stacked OBs ==="
 OB_DIRS=$($SSH "$SERVER" \
-    "ls -1d $REMOTE_BASE/SCI_RECONSTRUCTED_dc_*_s_i_bkg2d_rv 2>/dev/null | xargs -I{} basename {}")
+    "ls -1d $REMOTE_BASE/SCI_RECONSTRUCTED_dc*_s_i_bkg2d_rv 2>/dev/null | xargs -I{} basename {}")   # dc_ and dcr_ (row-corrected IZ)
 
 if [ -z "$OB_DIRS" ]; then
     echo "No stacked OB directories found under $REMOTE_BASE."
@@ -45,11 +45,13 @@ mapfile -t OB_ARRAY <<< "$OB_DIRS"
 for OB_DIR in "${OB_ARRAY[@]}"; do
     [ -z "$OB_DIR" ] && continue
 
-    # Pick the most recent timestamp subdirectory
+    # Pick the most recent timestamp subdirectory that holds DATACUBE_COMBINED files:
+    # every EDPS export also writes a twin folder with EDPS-internal product names,
+    # and taking the newest folder blindly skipped whole datasets.
     LATEST_TS=$($SSH "$SERVER" \
-        "ls -1 '$REMOTE_BASE/$OB_DIR/' 2>/dev/null | sort | tail -1")
+        "cd '$REMOTE_BASE/$OB_DIR/' 2>/dev/null && for ts in \$(ls -1 | sort -r); do ls \"\$ts\"/DATACUBE_COMBINED_*.fits >/dev/null 2>&1 && { echo \"\$ts\"; break; }; done")
     if [ -z "$LATEST_TS" ]; then
-        echo "  Skip  $OB_DIR (no timestamp subdir)"
+        echo "  Skip  $OB_DIR (no timestamp subdir with DATACUBE_COMBINED files)"
         continue
     fi
 

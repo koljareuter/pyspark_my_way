@@ -41,13 +41,30 @@ def highpass(spec, width=101):
     return (s - med)[:, 0, 0]
 
 
-def hybrid_ifu(ocube, scube, rds, ifu, lam):
+def _shift(mask, k):
+    """mask shifted by k planes without wrap-around (k > 0: towards higher plane numbers)."""
+    out = np.zeros_like(mask)
+    if k > 0:
+        out[k:] = mask[:-k]
+    elif k < 0:
+        out[:k] = mask[-k:]
+    else:
+        out[:] = mask
+    return out
+
+
+def hybrid_ifu(ocube, scube, rds, ifu, lam, wing=0):
     """Hybrid sky-subtracted cube of one IFU.
 
     ocube, scube : un-subtracted OBJECT and nearest SKY cubes (pyspark sky/ reconstructions)
     rds          : the DRP detector-level sky-subtracted cube of the same OBJECT frame and IFU
     ifu          : IFU number (slitlets run along y for IFUs 1-16, along x for 17-24)
     lam          : wavelength of every plane (micron)
+    wing         : 0 = as validated in October 2026.  W >= 2: in the OH-line wings, planes 2..W from a find_lines
+                   core, use the (high-passed) IFU-wide median of D instead of the per-slitlet template fit.  The
+                   misalignment residual there is common to all slitlets and too weak for a per-slitlet estimate;
+                   with the template fit it survives as a pattern shared by the IFUs of a detector
+                   (docs/hybrid-sky.md, 'OH wings'; W = 3 adopted for IZ).
     Returns a float64 cube; NaN where rds is NaN.
     """
     oc = np.asarray(ocube, float)
@@ -55,7 +72,7 @@ def hybrid_ifu(ocube, scube, rds, ifu, lam):
     rds = np.asarray(rds, float)
     D = (oc - sc) - rds
     nz, ny, nx = D.shape
-    x = (np.asarray(lam, float) - 0.93) / 0.14
+    x = (np.asarray(lam, float) - 0.93) / 0.14      # only scales the linear-term coefficients: band-independent model
     smed = np.nanmedian(sc.reshape(nz, -1), axis=1)
     smed = np.where(np.isfinite(smed), smed, 0.0)
     g = np.gradient(smed)
@@ -63,8 +80,17 @@ def hybrid_ifu(ocube, scube, rds, ifu, lam):
     T = np.column_stack([highpass(g), highpass(g) * x, highpass(smed), highpass(smed) * x,
                          highpass(g2), highpass(g2) * x])
     T = np.where(np.isfinite(T), T, 0.0)
-    oh = find_lines(np.nanmedian(sc[:, 1:13, 1:13].reshape(nz, -1), axis=1)).astype(bool)
-    oh = oh | np.roll(oh, 1) | np.roll(oh, -1)
+    sky = np.nanmedian(sc[:, 1:13, 1:13].reshape(nz, -1), axis=1)
+    core = find_lines(sky).astype(bool)
+    oh = core | np.roll(core, 1) | np.roll(core, -1)
+    wings, ifu_med = None, None
+    if wing >= 2:
+        cw = core & np.isfinite(sky)          # find_lines can flag a NaN band-end tail after an open rising edge
+        grown = cw.copy()
+        for k in range(1, int(wing) + 1):
+            grown |= _shift(cw, k) | _shift(cw, -k)
+        wings = grown & ~oh
+        ifu_med = np.nan_to_num(highpass(np.nanmedian(D.reshape(nz, -1), axis=1)))
     if ifu <= 16:
         groups = [(slice(None), slice(i, i + 1)) for i in range(nx)]
     else:
@@ -80,6 +106,8 @@ def hybrid_ifu(ocube, scube, rds, ifu, lam):
             continue
         coef = np.linalg.lstsq(T[ok], dmed[ok], rcond=None)[0]
         m = np.where(oh, np.nan_to_num(np.nanmedian(sub, axis=1)), T @ coef)
+        if wings is not None:
+            m = np.where(wings, ifu_med, m)
         model[:, gy, gx] = m[:, None, None]
     hyb = rds + model
     hyb[~np.isfinite(rds)] = np.nan

@@ -64,6 +64,10 @@ python scripts/telluric_combined.py apply --comb kmos_comb_hyb_IZ --index tellur
 ```
 
 The telluric frame index is keyed by frame timestamps, so the PROCDIR_OHLIN index also covers the dcr_ frames.
+Since 2026-10-25, `telluric_combined.py` defaults to method `best`: per-night wavelength alignment of the standards
+(IZ, YJ), an in-field line-depth factor, a 0.02 floor and flux-scale keywords. See the analysis project's
+docs/telluric-correction-v2.md. Its constants were measured on PROCDIR_OHLIN cubes and stay valid here, because the
+wavelength calibration is the same.
 
 ## What to check in the results
 
