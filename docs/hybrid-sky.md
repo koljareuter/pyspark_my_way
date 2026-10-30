@@ -153,15 +153,92 @@ validated on (in-sample); the first server run should be checked with the same c
   for all detectors: the loss is small against the gain and a per-detector switch would need a server-side test.
 - Flux: in-field star continua x0.9986-0.9999; 1168518 [OIII] x1.04 at S/N 7.7.
 
-## Not for H; YJ untested
+## Not for H
 
 H has the same O - S excess (O - S / O - O = 1.70 blue), but only about a quarter of its shared pattern comes
 from SKY-frame detector features; the IZ model makes H 1.3-3.3x worse and every full-hybrid variant increases
-the H common mode. Keep `hybrid_sky = False` for H (`sky_cal_angle = object` gives +5-11 % there). YJ has no
-mismatched frames locally; test one mismatched YJ OB before switching it on.
+the H common mode. Keep `hybrid_sky = False` for H (`sky_cal_angle = object` gives +5-11 % there).
 
 Separate open issue found on the way: production ZAP removes part of the flux of H-band emission lines that
 fall on strong OH lines (classic and hybrid alike; 16 % of such lines lose 16-24 % or more). Needs its own
 investigation.
 
-Investigation products: WSL `~/gains/{depth,hybrid_fix,hybrid_h}`, `~/impl_test/{hyb,hyb2}`.
+## YJ (2026-10-27): own model options
+
+Test data: two mismatched YJ OBs (KMOS.2026-02-11T06:31:26.207 cosmos h21.4, KMOS.2026-06-08T05:24:25.056
+SPT2040; scripts/fetch_yj_test.sh), local chain classic / row CM / row CM + hybrid (W = 3), 6-frame esorex
+combinations (WSL `~/impl_test/e2e/comb/<OB>/YJ*`, variants of the sky subtraction in `~/impl_test/yjoh`).
+
+**With the IZ model the hybrid helps off the OH lines but fails on them.** Interior noise in OH-free planes x0.23-0.62
+of classic, but bright OH planes up to x1.7 in the interior and up to x3.1 / x3.6 on the outermost / second spaxel
+from the cube edge, and a per-plane offset shared by the
+IFUs of a detector (between-IFU covariance x2.6-130 of classic) that costs S/N in apertures (fits forced at the
+catalogue z: 1147707 Halpha 10.9 -> 6.2, SPT2040 H45 [OIII] 6.7 -> 4.3).
+
+**Cause.** In YJ the detector-level cube R_ds leaves OH residuals about 10x larger than in IZ (flexure at the
+~90 deg rotator offset): in the line cores as large as the sky itself, sign-changing from plane to plane, shared by
+all IFUs of a detector (correlation 0.9-1.0), and present at a lower level in the "free" planes. D = (O - S) - R_ds
+carries the same with the opposite sign, and the model has to put it back. Two parts of the IZ model are not good
+enough for that:
+- outside the OH cores the model is high-passed (101-plane running median removed); with dense, large OH residuals
+  in D that running median is not smooth, and its structure stays in the result as the shared per-plane offset;
+- in the OH cores the slitlet median misses that D changes towards the slitlet ends (first/last 1-3 spaxels along
+  the slitlet, the same for all slitlets of an IFU: a reconstruction edge effect), and the same pattern comes back
+  in every frame (frame-to-frame correlation of the residual 0.73-0.86 in bright OH planes against 0.30-0.40
+  classic).
+The target cancels in D in YJ as in IZ (in-field stars: continuum in D +-0.02 %, wavelength offset R_ds vs O - S
+0.002 planes), so every model of D stays target-independent.
+
+**Options** (`[cubes]`, defaults = the IZ model, bit-identical to before):
+- `hybrid_free_model = ifumed`: outside the OH cores the exact per-plane IFU median of D (no high-pass, ~200
+  spaxels), plus the per-slitlet template fit of the slitlet deviations from it; in the wing planes the exact IFU
+  median.
+- `hybrid_oh_model = pos3`: in the OH-core planes the slitlet median plus a position profile along the slitlet at
+  the 3 end positions: per plane, the median over the IFU's ~14 slitlets of (D - slitlet median) at each position.
+  The median over slitlets keeps the common end pattern and rejects single-spaxel features of D (SKY-frame detector
+  artefacts, i.e. the classic mismatch problem).
+  Also tested and rejected: per-spaxel models along the slitlet (`run3`, `run5`, `lin`, `full` = classic in the cores,
+  `run3b<T>` = run3 on bright lines only). They put D's per-spaxel structure back: `run3b30` made the central 5x5
+  apertures x1.05-1.28 noisier in OH planes than the slitlet median (86-90 % of targets in the blue) and re-added
+  1755 / 5523 voxels above 10 sigma (129 / 314 in the central 5x5); `full` 12052 / 26296. `pos3` re-adds 60 / 1991
+  (none in the central 5x5) and removes 4636 / 41521 relative to the slitlet median. `pos2` behaves like `pos3`
+  within 1-2 % except for a somewhat larger shared OH-plane covariance; `pos` (profile at all positions) is closest
+  to classic in that covariance but adds noise at the target (central-aperture OH noise x0.96-1.05 of `pos3`, higher
+  in 5 of 6 OB/window cases). Against the plain slitlet median (`median` + `ifumed`) `pos3` has the same central
+  aperture noise but about 5 % lower forced line S/N at the target (11 of 13 lines with S/N >= 3; H45 [OIII] 8.7 ->
+  7.5); its gain is at the cube edges, in the interior, in the tails, the artefact count and the shared covariance.
+
+**Result** (median ratios to classic over the target cubes of both OBs; `ifumed` + `pos3`, W = 3; WSL
+`~/impl_test/e2e/comb/<OB>/YJhP3I`):
+- interior spaxels (>= 3 from the cube edge): free planes x0.22-0.54, wing x0.34-0.65, OH x0.54-0.87 (IZ model: OH up
+  to x1.70);
+- outermost spaxels (distance 0): free x0.52-0.83, OH x0.51-1.01 (IZ model: OH up to x3.1); second spaxel
+  (distance 1): free x0.47-0.69, OH x0.59-1.08 (IZ model: OH up to x3.6);
+- central 5x5 target apertures (robust): free x0.47-0.71, wing x0.65-0.84, OH x0.74-1.00, the same as with the
+  slitlet median;
+- 5-sigma tails, normalised with classic's per-spaxel sigma for all variants: OH planes x0.18-0.94, wing x0.05-0.64;
+- between-IFU shared part (mean product of the per-plane background medians of IFU pairs on one detector): x0.6-2.2
+  of classic where the classic value is clearly positive (OB 1 blue OH planes x4.5 of a small classic value);
+  IZ model x2.6-130;
+- lines, all fitted forced at the catalogue z with the default width (like for like): 1147707 Halpha S/N 10.9 ->
+  11.2 (flux x1.06), H45 [OIII] 6.7 -> 7.5 (x0.90), 1123917 Halpha 5.2 -> 10.8 (x1.11), 1168518 Halpha 27 -> 44
+  (x1.01), 1216183 Halpha 2.1 -> 4.8; lower: 1195224 Halpha 3.2 -> 2.8 and 1220318 3.7 -> 3.0 (flux x0.65 / x0.79,
+  within the errors at S/N ~3, the same in every hybrid variant), and 1180013 Halpha 2.2 -> 0.7 (flux x0.18; in every
+  hybrid variant 0.6-1.6, unchanged with row CM alone, so either a classic residual or a faint line the hybrid
+  removes; undecided at 2 sigma); in-field star continua x0.996-1.003 (blue -0.35 % in all ifumed variants). (Free
+  'anchored' fits are not comparable between variants: classic H45 was a broad, poor fit at sigma 345 km/s, and
+  1120854 crossed the anchor threshold.)
+- Row CM alone: cube noise x0.98-1.00, but forced line errors x0.75-0.89 on the h21.4 OB, so part of the line gains
+  above comes from it (1168518: classic 27, row CM 34, row CM + hybrid 44).
+- Chosen on these two OBs (in-sample) at 80-93 deg rotator offset. Not tested at 36-54 deg (XMM2215, 9 YJ OBs;
+  cosmos_target_legac, cosmos_target_1), where R_ds should be closer to IZ.
+
+**IZ keeps the IZ model.** On the two IZ test OBs `ifumed` changes little (interior and edges x1.00, remaining
+red-wing correlation 0.18 -> 0.01) but raises the central-aperture noise in free planes by 3-8 %; `run3b30` makes
+the IZ OH planes worse (x1.17-1.33); `pos3` is neutral in IZ (all metrics x0.97-1.03, OH-plane between-IFU
+correlation of h21.4 0.13-0.15 -> 0.08-0.11). So the IZ configs keep the defaults (tmpl, median); `pos3` would be
+harmless there but is not worth a re-run.
+
+Server run: scripts/kmos_server_hyb_YJ.cfg (and _test), docs/procdir-hyb-server-run.md 'YJ'.
+
+Investigation products: WSL `~/gains/{depth,hybrid_fix,hybrid_h}`, `~/impl_test/{hyb,hyb2,yjoh}`.

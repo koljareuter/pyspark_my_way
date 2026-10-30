@@ -199,7 +199,7 @@ def salva(cube, filename):
 def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
             inputdir=None, suffix='s', tbsub=False, svd_path=None,
             sky_combine='nearest', sky_scale='none', sky_nan='renorm', hybrid_sky=False,
-            hybrid_min_dangle=20., hybrid_wing=0, **kwargs):
+            hybrid_min_dangle=20., hybrid_wing=0, hybrid_oh_model='median', hybrid_free_model='tmpl', **kwargs):
 
     for obj_exp, sky_exp, dit in matched_exposures:
         # sky_exp is either one SKY file (classic, from match_obj_sky) or a
@@ -272,7 +272,9 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
             else:
                 logger.debug('-- Using {0} for initial subtraction'.format(sky_exp.split('/')[-1]))
             if use_hyb:
-                logger.info('-- Hybrid sky subtraction with skysub_det/{0}'.format(os.path.basename(hyb_path)))
+                logger.info('-- Hybrid sky subtraction with skysub_det/{0} (wing {1}, oh {2}, free {3})'.format(
+                    os.path.basename(hyb_path), int(hybrid_wing), str(hybrid_oh_model).strip(),
+                    str(hybrid_free_model).strip()))
         with fits.open(exp_sub, mode='update') as ofile, contextlib.ExitStack() as sstack:
             sfiles = [sstack.enter_context(fits.open(sf)) for sf in sky_files]
             rfile = sstack.enter_context(fits.open(hyb_path)) if use_hyb else None
@@ -325,7 +327,8 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
                     elif use_hyb and rfile[ifu].data is not None and rfile[ifu].data.shape == ocube.shape:
                         lam = (np.arange(oz) + 1 - header['CRPIX3']) * header['CDELT3'] + header['CRVAL3']
                         sub_cube = hybrid_ifu(ocube, scube, np.array(rfile[ifu].data), ifu, lam,
-                                              wing=int(hybrid_wing))
+                                              wing=int(hybrid_wing), oh_model=str(hybrid_oh_model).strip(),
+                                              free_model=str(hybrid_free_model).strip())
                         sub_cube = sub_cube.astype(np.float32).astype(float)
                     else:
                         if use_hyb and logger is not None:
@@ -366,6 +369,12 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
             if use_hyb:
                 ofile[0].header['HIERARCH ESO PYSPARK SKY HYBRID'] = (True, 'detector-level O-S + sky-only model')
                 ofile[0].header['HIERARCH ESO PYSPARK SKY HYBRID WING'] = (int(hybrid_wing), 'IFU-median in OH wings 2..W')
+                if str(hybrid_oh_model).strip() != 'median':
+                    ofile[0].header['HIERARCH ESO PYSPARK SKY HYBRID OHMODEL'] = (str(hybrid_oh_model).strip(),
+                                                                                  'OH-core model of D')
+                if str(hybrid_free_model).strip() != 'tmpl':
+                    ofile[0].header['HIERARCH ESO PYSPARK SKY HYBRID FREEMODEL'] = (str(hybrid_free_model).strip(),
+                                                                                    'off-OH model of D')
                 ofile[0].header['HISTORY'] = 'Sky: hybrid (DRP detector-level O-S + slitlet model of the sky-only term)'
 
 
