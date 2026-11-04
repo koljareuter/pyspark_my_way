@@ -413,3 +413,33 @@ validation (analysis project docs/telluric-correction-v2.md), and re-run apply i
 Checks: WSL ~/impl_test/edge/scripts/edge_survey.py (outermost 3 rows in OH-free planes; back to about the OHLIN
 level, 12 %); central apertures and line fluxes unchanged against kmos_comb_hybrid within the noise (interp vs header:
 flux ratio 0.995-0.999 locally); narrow lines about 1-3 km/s narrower.
+
+## Run of 2026-11-04 (IZ + YJ PROCDIR_HYBE, rv_mode = interp)
+
+On 2026-11-04 the first-run cfgs kmos_server_hyb_{IZ,YJ,H}.cfg were started again by mistake (two H jobs at once, two
+jobs per working directory) and killed after about 2 h. They rewrote files in PROCDIR_HYB, which PROCDIR_HYBE reuses.
+scripts/run_hybe_chain.sh first redoes the PROCDIR_HYB OB folders with files modified since 2026-11-04 00:00 (original
+cfg, own working directory; the OB that was cut off gets complete files again), then links and runs PROCDIR_HYBE.
+For this run the cfgs use rv_mode = interp (telluric step and index unchanged; header mode waits for re-derived
+telluric constants). H is not re-run: with interp, PROCDIR_HYBE H would equal PROCDIR_OHLIN (use kmos_comb_ohlin_tell);
+the sky-line residuals at the H slitlet ends (flexure against the 60-deg calibration bins) are not fixed yet.
+
+```bash
+cd ~/pyspark_my_way && git pull && git log -1 --oneline
+pgrep -af "reduce_kmos|esorex|kmos_sci_red"      # must print nothing (kill leftover PIDs first)
+for B in IZ YJ; do
+  nohup bash scripts/run_hybe_chain.sh $B > /local_storage/KOLJA/hyb_work/chain_$B.log 2>&1 &
+done
+tail -f /local_storage/KOLJA/hyb_work/chain_IZ.log   # Ctrl-C ends only the tail
+# first OB done: suffix 'edge 3' in the newest log of an IZ OB with skysub_det cubes
+grep -h "Hybrid sky subtraction" $(ls -t /local_storage/KOLJA/PROCDIR_HYBE/KMOS.2026-02-12T06:02:50.540/*_IZ_*.log | head -1)
+# finished: chain logs end with 'done', 83 / 45 OBs, 0 errors
+```
+
+Then combination as in step 4 of the section above (IZ and YJ only), download into kmos_comb_hybe_IZ / _YJ and the
+telluric step with the existing index:
+
+```bash
+python scripts/telluric_combined.py apply --comb kmos_comb_hybe_IZ --index telluric_frame_index_ohlin.json \
+       --tell telluric_all --out kmos_comb_hybe_IZ_tell       # YJ alike
+```
