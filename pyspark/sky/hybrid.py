@@ -42,6 +42,14 @@ def highpass(spec, width=101):
     return (s - med)[:, 0, 0]
 
 
+def _runmed(a, width=101):
+    """centred running median along axis 0 (NaN-aware, at least width/4 valid values, NaN padding)."""
+    a = np.asarray(a, float)
+    nz, half = a.shape[0], width // 2
+    pad = np.concatenate([np.full((half,) + a.shape[1:], np.nan), a, np.full((half,) + a.shape[1:], np.nan)], 0)
+    return bn.move_median(pad, width, axis=0, min_count=width // 4)[width - 1:width - 1 + nz]
+
+
 def _shift(mask, k):
     """mask shifted by k planes without wrap-around (k > 0: towards higher plane numbers)."""
     out = np.zeros_like(mask)
@@ -85,7 +93,7 @@ def _along(sub, oh_model):
     raise ValueError("unknown oh_model %r" % oh_model)
 
 
-def hybrid_ifu(ocube, scube, rds, ifu, lam, wing=0, oh_model="median", free_model="tmpl"):
+def hybrid_ifu(ocube, scube, rds, ifu, lam, wing=0, oh_model="median", free_model="tmpl", edge=0):
     """Hybrid sky-subtracted cube of one IFU.
 
     ocube, scube : un-subtracted OBJECT and nearest SKY cubes (pyspark sky/ reconstructions)
@@ -109,6 +117,11 @@ def hybrid_ifu(ocube, scube, rds, ifu, lam, wing=0, oh_model="median", free_mode
     free_model   : 'tmpl' = per-slitlet template fit of the high-passed slitlet median of D outside the OH cores and
                    the high-passed IFU median in the wings (as validated for IZ); 'ifumed' = the exact per-plane IFU
                    median of D there plus the template fit of the slitlet deviations from it.
+    edge         : 0 = off.  N > 0: add the slitlet-end level of D at the N end positions of every slitlet in all planes
+                   where no 'pos' profile is applied: per plane the median over the IFU's slitlets of D minus the
+                   slitlet median, smoothed along wavelength (101-plane running median without the OH-core planes).
+                   Without it the model is flat along the slitlet there and the result keeps the slitlet-end level
+                   of the detector-level cube (hot edge rows in the combined cubes, docs/hybrid-sky.md 'Slitlet ends').
     Returns a float64 cube; NaN where rds is NaN.
     """
     oc = np.asarray(ocube, float)
@@ -174,6 +187,27 @@ def hybrid_ifu(ocube, scube, rds, ifu, lam, wing=0, oh_model="median", free_mode
             prof = np.nan_to_num(np.nanmedian(np.array(res), axis=0))
             if nend > 0:
                 prof[:, nend:prof.shape[1] - nend] = 0.0
+    eprof, epl = None, None
+    if int(edge) > 0:
+        res = []
+        for gy, gx in groups:
+            sub = D[:, gy, gx].reshape(nz, -1)
+            if np.isfinite(sub).sum() >= nz:
+                res.append(sub - np.nanmedian(sub, axis=1)[:, None])
+        if len(res) >= 3:
+            pr = np.nanmedian(np.array(res), axis=0)
+            pr[oh] = np.nan                               # smooth level: OH-core planes left out of the running median
+            sm = _runmed(pr)
+            zz = np.arange(nz)
+            for j in range(sm.shape[1]):                 # dense OH regions (< width/4 free planes): interpolate
+                okj = np.isfinite(sm[:, j])
+                if 0 < okj.sum() < nz:
+                    sm[~okj, j] = np.interp(zz[~okj], zz[okj], sm[okj, j])
+            eprof = np.nan_to_num(sm)
+            eprof[:, int(edge):eprof.shape[1] - int(edge)] = 0.0
+            epl = np.ones(nz, bool)
+            if oh_model != "median" and not (along.startswith("pos") and prof is None):
+                epl = ~sel                                # planes with a 'pos'/along-slitlet model keep it
     model = np.zeros_like(D)
     for gy, gx in groups:
         sub = D[:, gy, gx].reshape(nz, -1)
@@ -206,6 +240,10 @@ def hybrid_ifu(ocube, scube, rds, ifu, lam, wing=0, oh_model="median", free_mode
             elif sel.any():
                 m2[sel] = _along(sub[sel], along)
             model[:, gy, gx] = m2.reshape(model[:, gy, gx].shape)
+        if eprof is not None and eprof.shape[1] == sub.shape[1]:
+            m3 = model[:, gy, gx].reshape(nz, -1)
+            m3[epl] += eprof[epl]
+            model[:, gy, gx] = m3.reshape(model[:, gy, gx].shape)
     hyb = rds + model
     hyb[~np.isfinite(rds)] = np.nan
     return hyb

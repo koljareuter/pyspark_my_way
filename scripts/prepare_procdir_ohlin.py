@@ -25,7 +25,7 @@ polynomial degree the patched DRP reported in the OB log (must equal lcorr_degre
 configs (kmos_server_hyb_*.cfg) also the row-corrected dcr_ frames and the skysub_det/ cubes of the hybrid sky
 subtraction (docs/hybrid-sky.md; 0 for OBs whose SKY frames are at the OBJECT rotator angle), and in 'wing' the
 final cubes made with the hybrid as <number>xW<hybrid_wing>, followed by /<oh_model>/<free_model> when those are
-not the defaults (YJ). For a --reuse procdir, OH_SPEC and degree come from the reconstruction that made the linked
+not the defaults (YJ), and by /e<hybrid_edge> when the slitlet-end level is used. For a --reuse procdir, OH_SPEC and degree come from the reconstruction that made the linked
 sky/ cubes (marked *).
 Exit code 1 if an OB lacks dc frames or calibrations for its band, or a path conflict was found.
 """
@@ -160,9 +160,11 @@ def status(cfg):
             if h.get("HIERARCH ESO PYSPARK SKY HYBRID"):
                 wings[(h.get("HIERARCH ESO PYSPARK SKY HYBRID WING", 0),
                        h.get("HIERARCH ESO PYSPARK SKY HYBRID OHMODEL", "median"),
-                       h.get("HIERARCH ESO PYSPARK SKY HYBRID FREEMODEL", "tmpl"))] += 1
-        wing = ",".join("%dxW%d%s" % (n, w, "" if (om, fm) == ("median", "tmpl") else "/%s/%s" % (om, fm))
-                        for (w, om, fm), n in sorted(wings.items())) or "-"
+                       h.get("HIERARCH ESO PYSPARK SKY HYBRID FREEMODEL", "tmpl"),
+                       h.get("HIERARCH ESO PYSPARK SKY HYBRID EDGE", 0))] += 1
+        wing = ",".join("%dxW%d%s%s" % (n, w, "" if (om, fm) == ("median", "tmpl") else "/%s/%s" % (om, fm),
+                                        "/e%d" % e if e else "")
+                        for (w, om, fm, e), n in sorted(wings.items())) or "-"
         # a --reuse procdir has no reconstruction of its own: OH_SPEC and degree of the run that made the sky/ cubes
         rec, mark = d, ""
         if skyc and os.path.islink(skyc[0]):

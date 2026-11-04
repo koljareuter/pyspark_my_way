@@ -150,12 +150,21 @@ def rvcorr_cube(wave_in, array_in, vbary):
 
 
 def velocity_correct(logger=None, subdir=None, obsband=None, rvcorr=True,
-		     search_suffix=None, **kwargs):
+		     search_suffix=None, rv_mode='interp', **kwargs):
+    """rv_mode 'interp' (default): resample every spaxel onto the barycentric wavelength grid (linear interpolation;
+    smooths by sqrt(f(1-f)) pixels, up to about 20-27 km/s, and correlates neighbouring planes).
+    'header' (docs/rv-correction.md): leave the data in the telescope frame and only store VHELIO; the frames are combined
+    in the telescope frame (the barycentric velocities of the frames of one combination differ by 0.2-0.4 km/s rms,
+    at most 4-12 km/s) and the combined cube's wavelength axis is relabelled lambda (1 + <v>/c) afterwards, with the
+    telluric correction applied unshifted before that."""
 
 
     # check that velocity correction is requested
     if not rvcorr:
         return 0
+    mode = str(rv_mode).split(';')[0].split('#')[0].strip().lower()
+    if mode not in ('interp', 'header'):
+        raise ValueError("rv_mode must be 'interp' or 'header', got %r" % rv_mode)
 
     if logger is not None:
         logger.debug('- Running heliocentric corrections')
@@ -178,7 +187,13 @@ def velocity_correct(logger=None, subdir=None, obsband=None, rvcorr=True,
         exp_corr = duplicate(exposure, outputdir=fpath, suffix='rv')
 
         with fits.open(exp_corr, mode='update') as ofile:
-            vbary = get_rvcorr(ofile[0].header) 
+            vbary = get_rvcorr(ofile[0].header)
+            if mode == 'header':
+                ofile[0].header['HISTORY'] = "Heliocentric correction {0:.2f} km/s stored, data not resampled".format(
+                    float(vbary.value))
+                ofile[0].header['HIERARCH ESO PYSPARK VHELIO'] = vbary.value
+                ofile[0].header['HIERARCH ESO PYSPARK RV MODE'] = ('header', 'topocentric; relabel after combine')
+                continue
             for ifu in range(1,25):
                 cube = np.array(ofile[ifu].data)
                 try:

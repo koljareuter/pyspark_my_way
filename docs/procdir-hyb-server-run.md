@@ -279,3 +279,137 @@ What to check, against the old OHLIN YJ cubes (local metrics: scratchpad wing/yj
   (PROCDIR_HYBW-style `--reuse`, a few minutes per OB);
 - matched YJ OBs (cosmos, cdfs_targets_2): row common mode only, x0.99-1.00.
 The options were chosen on two OBs.
+
+## Slitlet-end + header-mode re-run (PROCDIR_HYBE, `hybrid_edge = 3`, `rv_mode = header`, 2026-11-03)
+
+Two changes, one run for all three bands into /local_storage/KOLJA/PROCDIR_HYBE:
+- `hybrid_edge = 3` (IZ, YJ): the combined cubes of PROCDIR_HYBW (IZ) and PROCDIR_HYB (YJ) have hot edge rows
+  (continuum level, OH-free planes) in 25 % of the cubes (old OHLIN 12 %; hybrid-sky.md 'Slitlet ends'). The sky-line
+  spikes/dips at the slitlet ends (hybrid-sky.md 'Sky lines at the slitlet ends') are not fixed by this run.
+- `rv_mode = header` (IZ, YJ, H; docs/rv-correction.md): no barycentric resampling of the frames (it smooths lines by
+  19-26 km/s and correlates neighbouring planes); the frames stay in the telescope frame, EDPS combines them as before,
+  and scripts/telluric_combined.py (analysis project, 2026-11-03 version) relabels the combined cubes to barycentric
+  after the telluric correction.
+
+Both change only the steps after the reconstruction, so the run reuses the dcr_ frames and the sky/ and skysub_det/
+cubes of PROCDIR_HYB (IZ, YJ) and the sky/ cubes of PROCDIR_OHLIN (H; sky subtraction as there: classic O - S, no
+row common mode); the OB folders of the three bands do not overlap. Every other setting stays (IZ: median/tmpl, wing 3;
+YJ: pos3/ifumed, wing 3). Needs the commit with `hybrid_edge` and `rv_mode` first: older code ignores both options
+silently (check the log suffix 'edge 3' and the RV MODE key below).
+
+```bash
+cd ~/pyspark_my_way && git pull && git log -1 --oneline
+src() { [ "$1" = H ] && echo /local_storage/KOLJA/PROCDIR_OHLIN || echo /local_storage/KOLJA/PROCDIR_HYB; }
+
+# 0. smoke tests, a few minutes each
+for B in IZ YJ H; do
+  python scripts/prepare_procdir_ohlin.py scripts/kmos_server_hybe_${B}_test.cfg --reuse $(src $B)
+  mkdir -p /local_storage/KOLJA/hyb_work/${B}etest && cd /local_storage/KOLJA/hyb_work/${B}etest
+  env PYTHONPATH=$HOME/pyspark_my_way python $HOME/pyspark_my_way/scripts/reduce_kmos.py \
+      -p $HOME/pyspark_my_way/scripts/kmos_server_hybe_${B}_test.cfg > hybe_${B}test.out 2>&1
+  cd ~/pyspark_my_way && python scripts/prepare_procdir_ohlin.py scripts/kmos_server_hybe_${B}_test.cfg --status
+done
+#    expected wing column: IZ '6xW3/e3', YJ '6xW3/pos3/ifumed/e3', H '-'; OH_SPEC/degree marked * (reused)
+grep -h "Hybrid sky subtraction" $(ls -t /local_storage/KOLJA/PROCDIR_HYBE/KMOS.2026-02-12T06:02:50.540/*_IZ_*.log | head -1)
+grep -h "Hybrid sky subtraction" $(ls -t /local_storage/KOLJA/PROCDIR_HYBE/KMOS.2026-02-11T06:31:26.207/*_YJ_*.log | head -1)
+#    IZ: six '(wing 3, oh median, free tmpl, edge 3)', YJ: six '(wing 3, oh pos3, free ifumed, edge 3)'
+for OB in KMOS.2026-02-12T06:02:50.540 KMOS.2026-02-11T06:31:26.207 KMOS.2026-06-07T07:24:38.627; do
+  python -c "import sys; from astropy.io import fits; h = fits.getheader(sys.argv[1]); print(h.get('HIERARCH ESO PYSPARK RV MODE'), round(h['HIERARCH ESO PYSPARK VHELIO'], 2))" \
+         $(ls /local_storage/KOLJA/PROCDIR_HYBE/$OB/science/*_s_i_bkg2d_rv.fits | head -1)
+done
+#    expected 'header <v>' three times ('None' = old code: the frames were resampled)
+
+# 1. all OBs (dry runs first; the three reductions may run at the same time)
+for B in IZ YJ H; do python scripts/prepare_procdir_ohlin.py scripts/kmos_server_hybe_${B}.cfg --reuse $(src $B) --dry-run; done
+for B in IZ YJ H; do python scripts/prepare_procdir_ohlin.py scripts/kmos_server_hybe_${B}.cfg --reuse $(src $B); done
+for B in IZ YJ H; do
+  mkdir -p /local_storage/KOLJA/hyb_work/${B}e && cd /local_storage/KOLJA/hyb_work/${B}e
+  nohup env PYTHONPATH=$HOME/pyspark_my_way python $HOME/pyspark_my_way/scripts/reduce_kmos.py \
+        -p $HOME/pyspark_my_way/scripts/kmos_server_hybe_${B}.cfg > hybe_${B}.out 2>&1 &
+done
+cd ~/pyspark_my_way
+
+# 2. finished? when all jobs have ended (pgrep -f kmos_server_hybe prints nothing)
+grep -c "Finished reducing" /local_storage/KOLJA/hyb_work/IZe/hybe_IZ.out    # expected 83
+grep -c "Finished reducing" /local_storage/KOLJA/hyb_work/YJe/hybe_YJ.out    # expected 45
+grep -c "Finished reducing" /local_storage/KOLJA/hyb_work/He/hybe_H.out      # expected 18
+grep -c "An error occ" /local_storage/KOLJA/hyb_work/*e/hybe_*.out           # expected 0 for all
+for B in IZ YJ H; do python scripts/prepare_procdir_ohlin.py scripts/kmos_server_hybe_${B}.cfg --status | tail -1; done
+#    83 / 45 / 18 OBs, all started, all with final cubes, 0 with a wrong or missing degree
+
+# 3. telluric frame index of the new frames (headers only, a few minutes). The index must come from these frames:
+#    it carries RV MODE = header per frame, and telluric_combined.py refuses header-mode cubes with an older index.
+#    Copy the analysis project's scripts/telluric_combined.py (2026-11-03) to ~/telluric_combined_2026-11-03.py first
+#    (scp from the analysis project folder: scp scripts/telluric_combined.py hqempower1:telluric_combined_2026-11-03.py)
+python ~/telluric_combined_2026-11-03.py index --frames /local_storage/KOLJA/PROCDIR_HYBE \
+       --out /local_storage/KOLJA/telluric_frame_index_hybe.json
+#    expected about 842 frames (IZ 486, YJ 248, H 108 as in telluric_frame_index_ohlin.json)
+
+# 4. combination, one band at a time (own EDPS store)
+for B in IZ YJ H; do
+  python scripts/make_edps_input.py $B --procdir /local_storage/KOLJA/PROCDIR_HYBE --out /local_storage/KOLJA/edps_in_hybe_$B
+done
+#    expected 'OB folders: 83' (IZ), 45 (YJ), 18 (H)
+mkdir -p /home/kreuter/EDPS_data_hybe
+sed -i.bak 's#^base_dir=.*#base_dir=/home/kreuter/EDPS_data_hybe#' ~/.edps/application.properties
+#    restart edps-gui --port 5007, run cubes_combination on edps_in_hybe_IZ, export to /local_storage/KOLJA/res_hybe_IZ,
+#    then the same for edps_in_hybe_YJ -> res_hybe_YJ and edps_in_hybe_H -> res_hybe_H
+python scripts/edps_pick_jobs.py --base /home/kreuter/EDPS_data_hybe/KMOS/cubes_combination --band IZ    # YJ, H alike
+#    first exported cube: check that EDPS kept the key (telluric_combined.py needs it)
+python -c "import sys; from astropy.io import fits; print(fits.getheader(sys.argv[1]).get('HIERARCH ESO PYSPARK RV MODE'))" \
+       $(find /local_storage/KOLJA/res_hybe_IZ -name 'DATACUBE_COMBINED_*.fits' | head -1)
+#    expected 'header'
+```
+
+IZ alternative: full re-run (PROCDIR_HYBR). Row common mode on detector 1 as well (dets 1,2,3, minpix 30; IZ det-1
+noise x0.87-0.96 on 3 OBs, rv-correction.md 'Other existing steps') acts on the dc frames, so it cannot reuse
+PROCDIR_HYB: kmos_server_hybr_IZ.cfg runs the whole chain (about 20 h) with every other PROCDIR_HYBE setting. If you
+take it, run it instead of the IZ part above (YJ and H stay in PROCDIR_HYBE) and use PROCDIR_HYBR for IZ in steps 3-4:
+
+```bash
+python scripts/prepare_procdir_ohlin.py scripts/kmos_server_hybr_IZ_test.cfg      # no --reuse: links PROCDIR
+mkdir -p /local_storage/KOLJA/hyb_work/IZrtest && cd /local_storage/KOLJA/hyb_work/IZrtest
+env PYTHONPATH=$HOME/pyspark_my_way python $HOME/pyspark_my_way/scripts/reduce_kmos.py \
+    -p $HOME/pyspark_my_way/scripts/kmos_server_hybr_IZ_test.cfg > hybr_IZtest.out 2>&1
+cd ~/pyspark_my_way && python scripts/prepare_procdir_ohlin.py scripts/kmos_server_hybr_IZ_test.cfg --status
+#    expected: dc 9, dcr 9, sky 9, det 6, rv 6, wing '6xW3/e3'; the RV MODE check of step 0 on
+#    /local_storage/KOLJA/PROCDIR_HYBR/KMOS.2026-02-12T06:02:50.540 gives 'header'
+python scripts/prepare_procdir_ohlin.py scripts/kmos_server_hybr_IZ.cfg --dry-run
+python scripts/prepare_procdir_ohlin.py scripts/kmos_server_hybr_IZ.cfg
+mkdir -p /local_storage/KOLJA/hyb_work/IZr && cd /local_storage/KOLJA/hyb_work/IZr
+nohup env PYTHONPATH=$HOME/pyspark_my_way python $HOME/pyspark_my_way/scripts/reduce_kmos.py \
+      -p $HOME/pyspark_my_way/scripts/kmos_server_hybr_IZ.cfg > hybr_IZ.out 2>&1 &
+# finished: grep -c "Finished reducing" .../IZr/hybr_IZ.out = 83, then
+python ~/telluric_combined_2026-11-03.py index --frames /local_storage/KOLJA/PROCDIR_HYBE /local_storage/KOLJA/PROCDIR_HYBR \
+       --out /local_storage/KOLJA/telluric_frame_index_hybe.json
+python scripts/make_edps_input.py IZ --procdir /local_storage/KOLJA/PROCDIR_HYBR --out /local_storage/KOLJA/edps_in_hybr_IZ
+#    EDPS export to /local_storage/KOLJA/res_hybr_IZ, locally kmos_comb_hybr_IZ (-> kmos_comb_hybr_IZ_tell)
+```
+
+Locally afterwards (download in WSL, telluric step with the Windows Python as for the other runs; new folders only):
+
+```bash
+scp hqempower1:/local_storage/KOLJA/telluric_frame_index_hybe.json .
+for B in IZ YJ H; do REMOTE_BASE=/local_storage/KOLJA/res_hybe_$B LOCAL_BASE=kmos_comb_hybe_$B bash scripts/download_combined.sh; done
+for B in IZ YJ H; do
+  python scripts/telluric_combined.py apply --comb kmos_comb_hybe_$B --index telluric_frame_index_hybe.json \
+         --tell telluric_all --out kmos_comb_hybe_${B}_tell
+done
+```
+
+The telluric output cubes have RV MODE = relabelled, VBARY MEAN/STD (mean and spread of the frames' VHELIO), VBARY
+NOFRAME (PROV frames missing from the index, normally 0) and SPECSYS = BARYCENT; their wavelength axis is barycentric.
+Never feed them (or the uncorrected header-mode cubes) to an older telluric_combined.py: it would shift the telluric
+by VHELIO without any error. A folder that mixes interp and header-mode cubes cannot be corrected in one run (the
+index decides the mode; the script stops with 'cube RV MODE ... but index frames ...').
+
+Telluric constants: K_HF_DEFAULT (IZ 1.13, YJ 1.075), SCI_REF and SYS_A/SUBRES_C were measured on interpolated cubes.
+In the local end-to-end test (one YJ OB, docs/rv-correction.md) the in-field line-depth factor was 1.116 in header mode
+against 1.044 interpolated, so with the 1.075 default header-mode cubes without in-field stars are under-corrected by
+about 5 % in line depth. Before science use of kmos_comb_hybe_*_tell: collect the printed in-field 'k(<list>, <band>)'
+values of the first apply run, set the header-mode defaults to their medians, re-check SCI_REF with the 16-star
+validation (analysis project docs/telluric-correction-v2.md), and re-run apply into a new folder.
+
+Checks: WSL ~/impl_test/edge/scripts/edge_survey.py (outermost 3 rows in OH-free planes; back to about the OHLIN
+level, 12 %); central apertures and line fluxes unchanged against kmos_comb_hybrid within the noise (interp vs header:
+flux ratio 0.995-0.999 locally); narrow lines about 1-3 km/s narrower.

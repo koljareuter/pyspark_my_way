@@ -159,6 +159,27 @@ H has the same O - S excess (O - S / O - O = 1.70 blue), but only about a quarte
 from SKY-frame detector features; the IZ model makes H 1.3-3.3x worse and every full-hybrid variant increases
 the H common mode. Keep `hybrid_sky = False` for H (`sky_cal_angle = object` gives +5-11 % there).
 
+**Re-test with the YJ options (2026-11-02, same OB KMOS.2026-06-07T07:24:38.627, 76-89 deg; H production settings,
+no row common mode; variants median/tmpl, median/ifumed, pos3/ifumed, full/ifumed, all wing 3; local combinations of
+the 6 frames).** The YJ options remove the two IZ-model failures in H too: the shared per-plane offset (IZ model
+x127-171 of classic in free planes, ifumed x0.9-1.4) and the edge blow-up in OH planes. Still not adopted:
+- the gain is limited to planes outside the find_lines OH cores +-1, which cover about 46 % of the H planes (core
+  +-1 itself: pos3 x1.06-1.15, full = classic before ZAP); outside them per-plane noise x0.53-0.80, but the remaining
+  noise is correlated along wavelength (lag-1 0.83 against 0.30 classic), so line-width sums (5-13 planes) in central
+  apertures gain only about x0.85-0.9;
+- full/ifumed (classic in the cores) has its own problems: a bright line at 1.554 um that find_lines mostly misses
+  (x4-5 there), the first plane next to bright cores up to x1.3-3.2, more artefacts than classic in bright-OH planes and
+  on detector 3, and a mismatch dipole straddling a core boundary is half removed (line-specific, zero-mean error);
+- the science lines gain little: SPT2040 Halpha (z ~1.48) lies about 90 % in core/wing planes; XMM2215 Halpha has
+  free centre planes for 9 of 20 targets, [NII]6585 mostly none; XMM2215 H is at 39-54 deg (untested, the earlier
+  evidence points to a smaller gain there).
+Flux is safe in every variant: the two bright in-field stars show D <= 0.1 % of the target and <= 0.01 plane offset.
+B4's 25 % lower hybrid Halpha flux is an uncancelled hot pixel (spaxel 6,9 of the combined cube, line centre) that
+inflates the classic fit; without it hybrid = classic (x1.00-1.11). Before any H server run: test one or two XMM2215 H
+OBs locally (e.g. KMOS.2026-07-28T04:21:32.969, 39 deg) and run it only if 5-7-plane sums in central apertures come
+out <= x0.9 without edge strips. Scripts and results: WSL ~/impl_test/hband/scripts (h_test.py, h_metrics.py,
+h_artefacts.py, line_check.py, target_in_D_h.py, e2e_combine.py), cubes ~/impl_test/e2e/comb/<OB>/{Hc,HW3,HI,HP3I,HFI}.
+
 Separate open issue found on the way: production ZAP removes part of the flux of H-band emission lines that
 fall on strong OH lines (classic and hybrid alike; 16 % of such lines lose 16-24 % or more). Needs its own
 investigation.
@@ -241,4 +262,65 @@ harmless there but is not worth a re-run.
 
 Server run: scripts/kmos_server_hyb_YJ.cfg (and _test), docs/procdir-hyb-server-run.md 'YJ'.
 
-Investigation products: WSL `~/gains/{depth,hybrid_fix,hybrid_h}`, `~/impl_test/{hyb,hyb2,yjoh}`.
+## Slitlet ends (`hybrid_edge`, 2026-11-02)
+
+The first combined server cubes (PROCDIR_HYBW IZ, PROCDIR_HYB YJ; analysis project kmos_comb_hybrid) have hot edge
+rows: in the image collapsed over the OH-free planes, one of the outermost 3 rows deviates by > 3 sigma in 25 % of the
+275 cubes against 12 % in the old OHLIN cubes (IZ 22 % vs 3 %, YJ 27 % vs 21 %); for IFUs 1-16, where these rows are
+the slitlet ends, 36 % vs 16 %; interior rows unchanged (4 %). Cause: outside the OH cores the model of D is
+one value per slitlet, flat along it, so the result keeps the slitlet-end level of the detector-level cube R_ds,
+which differs from that of the separate pyspark reconstruction ('pos3' restores it only in the OH-core planes).
+
+`hybrid_edge = N` adds, at the N end positions of every slitlet and in all planes without a 'pos' profile, the
+slitlet-end level of D: per plane the median over the IFU's slitlets of D minus the slitlet median (like 'pos'), with
+the OH-core planes left out and a 101-plane running median along wavelength (planes where the window holds too few
+non-OH planes, e.g. YJ 1.26-1.29 um, are interpolated along wavelength). Like every term of the model it comes from D
+only (target-free; on two bright in-field stars D <= 0.03 % of the peak); zero in the slitlet middle, so central
+apertures do not change. The default (0) is bit-identical to before (294 IFU comparisons, 7 option sets).
+
+Local test (combinations of the 6 frames, cubes with a slitlet-end offset > 3 sigma; classic / current / edge 3):
+IZ h21.4 0 / 33 / 5 %, IZ legac 0 / 0 / 0 %, YJ h21.4 0 / 48 / 0 % (the end offsets return to classic), YJ SPT2040
+24 / 81 / 52 % (median max |end| 1.9 / 3.6 / 3.2 sigma: 5 of the 11 flagged cubes are also flagged in classic, about 4
+are remaining hybrid excess in IFUs 1, 2, 4 and 18; the outermost-slitlet offset grows slightly, median 1.0 -> 1.4
+sigma). N = 7 (whole slitlet) gives about the same (h21.4 IZ 0 %, SPT2040 48 %). Noise against the current hybrid:
+central 5x5 apertures and per-spaxel rms at all edge distances x0.96-1.01 (YJ), x1.00 (IZ). Adopted with N = 3 for
+IZ and YJ: re-run of the sky subtraction only, PROCDIR_HYBE (docs/procdir-hyb-server-run.md 'Slitlet-end + header-mode re-run').
+The classic level of edge rows (12 %, YJ 21 %) is a separate, pre-existing effect. Scripts and results: WSL
+`~/impl_test/edge/scripts` (edge_survey.py, edge_local.py, yj/iz_metrics_e.py, yj_variant.py).
+
+## Sky lines at the slitlet ends (investigated 2026-11-02, not fixed)
+
+Separate from the hot rows above: in the outermost rows of many combined cubes every bright sky line leaves a narrow
+residual (one-plane spikes or dips), e.g. XMM2215 31863 H: third row from the bottom +38 sigma, third and outermost row
+from the top -46 / -26 sigma, interior 0. Combined cubes with an edge row/column > 5 sigma at the sky-line peak plane
+(oh_rows.py): OHLIN H 51 % (> 10 sigma 32 %), YJ 12 %, IZ 3 %; new hybrid YJ 14 %, IZ 1 %; the first PROCDIR_HYB H run
+with `sky_cal_angle = object` 98 %. In single frames the residual is mostly at one slitlet end only (the other end, if
+significant, 10-100x weaker), differs from line to line (bright lines leak or do not), sits mostly in one plane in H and
+1-1.5 planes off the line peak in IZ: not a rigid spatial shift of the sky; origin unknown (sampling or edge
+illumination at the slitlet end in O vs S are candidates). The hybrid does not remove it.
+
+Tried and not adopted: a per-frame fit at the 3 end positions of the median-over-slitlets residual as a x hp(S) + b x
+dS/dlambda (one amplitude per position, S = sky spectrum; prototype in WSL ~/impl_test/edge/scripts/not_adopted).
+The peak-plane statistic improved (H SPT2040 cubes > 10 sigma 57 % -> 5 %, YJ SPT2040 24 % -> 0 %), but the review
+showed that this mostly moves the residual into the neighbouring planes: one amplitude per position removes a median
+of only 27 % of the residual power, adds sky-shaped structure to the lines that do not leak, makes 40 % of the leaking
+slitlet ends worse, and in IZ turns an off-peak residual into a peak-plane one (0 % -> 19 % with the same statistic).
+Lines on bright OH lines lost a few per cent of their flux in injection tests (clean wavelengths 1.000). A fix needs a
+line-by-line (or one-plane-kernel) model and a line-window metric (signed profile over the planes around each line)
+instead of the peak plane.
+
+Line-by-line follow-up (2026-11-03, WSL ~/impl_test/edge/scripts: lw_rows.py, edge_line_proto.py, inject_line.py).
+Metric lw_rows.py: per row/column the median window profile (-3..+3 planes) around every bright sky line, rms over
+lines and planes, in units of the same statistic between the lines in the interior; worst of the outer 3 rows/columns.
+Edge level (median over cubes; interior about 1.0-1.9): H SPT2040 classic 24.3, YJ SPT2040 classic 3.4, YJ h21.4 2.7,
+IZ h21.4 2.6. Hybrid: YJ with the flat OH model (median/ifumed) 33-40, with pos3 3.6-5.6 (so in YJ the edge residual
+comes from the detector-level cube R_ds and pos3 removes most of it); H hybrid variants 19-44 (no help).
+Non-parametric correction (at the 3 end positions, in the sky-line windows, subtract the median-over-slitlets residual
+itself): H 24.3 -> 4.9, YJ SPT2040 5.1 -> 3.2, YJ h21.4 3.5 -> 3.0, IZ 3.1 -> 2.4. NOT adopted: in classic O - S the
+median over slitlets contains the target, and injected lines on a sky line at the slitlet ends lose flux (1-3 slitlets
+wide 0.86-0.97 in the source, 7 slitlets 0.59-0.65, a galaxy centred on the cube edge 0.57-0.73; clean wavelengths
+1.00-1.02). Target-safe options left: (a) for hybrid bands an estimate from D only (target-free), e.g. the pos profile
+also in the wing planes; (b) for classic (H) no estimate without the target: larger STAT (down-weighting) for the
+slitlet-end voxels in sky-line windows instead of a correction.
+
+Investigation products: WSL `~/gains/{depth,hybrid_fix,hybrid_h}`, `~/impl_test/{hyb,hyb2,yjoh,hband,edge}`.
