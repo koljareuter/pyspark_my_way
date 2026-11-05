@@ -288,7 +288,7 @@ IZ and YJ: re-run of the sky subtraction only, PROCDIR_HYBE (docs/procdir-hyb-se
 The classic level of edge rows (12 %, YJ 21 %) is a separate, pre-existing effect. Scripts and results: WSL
 `~/impl_test/edge/scripts` (edge_survey.py, edge_local.py, yj/iz_metrics_e.py, yj_variant.py).
 
-## Sky lines at the slitlet ends (investigated 2026-11-02, not fixed)
+## Sky lines at the slitlet ends (investigated 2026-11-02; cause and fix `sky_align` 2026-11-04, below)
 
 Separate from the hot rows above: in the outermost rows of many combined cubes every bright sky line leaves a narrow
 residual (one-plane spikes or dips), e.g. XMM2215 31863 H: third row from the bottom +38 sigma, third and outermost row
@@ -324,3 +324,62 @@ also in the wing planes; (b) for classic (H) no estimate without the target: lar
 slitlet-end voxels in sky-line windows instead of a correction.
 
 Investigation products: WSL `~/gains/{depth,hybrid_fix,hybrid_h}`, `~/impl_test/{hyb,hyb2,yjoh,hband,edge}`.
+
+### Cause and fix (`sky_align`, 2026-11-04)
+
+Cause: flexure. The slitlet traces move rigidly along detector x (= along the slitlet) with the rotator angle, by
+up to ~1.5 px over 360 deg. kmos_sci_red takes the flat and the slitlet geometry of a 60-deg calibration bin, so in a
+frame taken at another angle the slitlet end sits slightly off. In O - S this leaves a flux excess at one slitlet end
+and a deficit at the other, each a scaled copy of every sky line. The flat-angle model predicts the cube residual
+per IFU end with r = 0.92 (own angle) and 0.93 (object angle). `sky_cal_angle = object` makes it worse: S, taken
+76-89 deg away in the local H OB, is then reconstructed with O's geometry, but its traces are elsewhere.
+
+Fix, `[cubes] sky_align = True` (needs `sky_cal_angle = object`; pyspark/cubes/sky_align.py). Per OBJECT frame O and
+its SKY frame S (pyspark's pairing), S's pixels are not moved. A raw shift of S raises the interior noise
+(x1.16-1.31 in 5x5 apertures) because the detector's fixed pattern then no longer cancels in O - S. Instead:
+- dx per IFU: the shift along x that puts S's traces onto O's (`sky_align_dx = measure`, the default). It is the
+  slitlet-end/interior ratio null of O/S at OH-line peaks, searched within +-0.6 px of a flat-edge model (MASTER_FLAT
+  slitlet ends at the 6 angles, harmonic in angle, at the mean exposure angles). The flat value is used if the search
+  hits its border, the two ends disagree by > 0.2 px, or the result is > 0.4 px from the flat value.
+- D = shift(S_rep, dx) - S_rep (S_rep: flat bad pixels repaired). At the 3 pixels inside each slitlet end, in 40-mas
+  bins of the along-slitlet coordinate, D is fitted with the local sky spectrum (interior pixels 3-7 of the same row)
+  and its first and second derivatives along the dispersion. Only that sky-shaped part is added to a copy of the raw
+  S; the pedestal is not applied. Every slitlet row is corrected, including rows with a flat-NaN pixel.
+- The copy is reconstructed with O's rotator angle into `<OB>/sky_align/SCI_RECONSTRUCTED_<O>`. subtract_sky uses it
+  for the classic O - S + ZAPv2 instead of the mean-angle SKY cube of sky/. The OBJECT frames and sky/ are unchanged.
+  The offsets are stored in the cube headers (`ESO PYSPARK SKY ALIGN DX<ifu>`, flat value `DXF<ifu>`, `SRC<ifu>` = MEAS
+  or FLAT); the science frames carry `ESO PYSPARK SKY ALIGN = T`.
+
+The default (`sky_align = False`) is bit-identical: 9 sky/ and 6 science/ cubes of the local H OB against the
+2026-11-03 local production chain (H_ref), 21 IFUs each.
+
+Local test: H OB KMOS.2026-06-07T07:24:38.627 (SPT2040, 6 O-S pairs), production H settings up to the sky
+subtraction, 6 frames combined with esorex kmos_combine. own = classic own angle, objp = object angle per pair.
+- Port of the prototype ('shs4'): driven with the prototype's offset table, the pipeline reproduces the prototype's
+  SKY cubes and science frames bit for bit except one IFU in 3 of the 6 pairs (max |diff| 6e-8, float
+  rounding), and therefore all its metrics.
+- Offsets measured in the pipeline vs the prototype's: rms 0.024 px, max 0.095 px. 125 of the 126 active pair-IFUs
+  were measured; the flat model alone agrees to rms 0.086 px. Unlike the prototype's estimator (search range +-1 px,
+  clipped in the last pair), these are not limited to +-1 px: det 1 reaches +0.92..+1.02 px in the last pair.
+- Combined cubes, oh_rows edge maximum (median over 21 cubes): own 15.4 sigma, objp 27.7, prototype 1.6, pipeline 1.3.
+  Cubes with an edge > 5 sigma: own 67 %, objp 100 %, prototype 19 %, pipeline 0 %.
+  lw_rows edge level (interior 1.8-1.9): own 24.3, objp 75.4, prototype 4.43, pipeline 4.54.
+- Single frames, slitlet-end rows/columns: max |end| own 374 sigma, objp 442, prototype 21.7, pipeline 6.7.
+  Ends > 5 sigma: own 25 %, objp 84.5 %, prototype 2.4 %, pipeline 1.2 %. lw at the end rows 2.99 vs own 2.47.
+- Interior noise, combined cubes, OH-free 5x5 apertures relative to own: objp 0.893, pipeline 0.880.
+- `sky_align_dx = flat` (flat model only, rms 0.086 px from the measured offsets) is clearly worse: combined cubes
+  with an edge > 5 sigma 43 % (measure 0 %), lw edge 7.4; single-frame max |end| 21.8 sigma. Keep `measure`; IFUs
+  that fall back to the flat value (`SRC<ifu> = FLAT`) will keep part of the leak.
+- Fluxes: stars as objp (H128R continuum ratio to own 1.0003, H129R 1.0062 vs objp 1.0068). Halpha forced fits:
+  median |dF|/err against own 1.28 (objp 1.34).
+Cost: one more kmos_sci_red run per OB (one 34 MB SKY cube per OBJECT frame) and about 1 min of Python per frame.
+Server run: docs/procdir-hyb-server-run.md, 'Slitlet-end alignment run (PROCDIR_HALN, H)'.
+
+Open points:
+- Validated on one H OB only. Still to check: XMM2215 31863, OBs with larger O-S angle differences (the residual grows
+  with the offset), and IZ/YJ.
+- Small remaining excess: lw at the end rows 2.99 vs own 2.47, and the neighbour rows 1/12 at 2.14 vs own 1.95.
+- The end continuum on OH-free planes is about -0.19 per-plane sigma at rows 0/13 (own -0.08, objp -0.38). This was
+  measured for the prototype; it follows the shift model.
+- `sky_align` together with `hybrid_sky` or multi-sky is refused (not implemented).
+Scripts and results: scratchpad haln/{align,align2,impl}, WSL `~/impl_test/haln/{align,align2,chk_align,impl}`.

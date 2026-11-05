@@ -200,7 +200,7 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
             inputdir=None, suffix='s', tbsub=False, svd_path=None,
             sky_combine='nearest', sky_scale='none', sky_nan='renorm', hybrid_sky=False,
             hybrid_min_dangle=20., hybrid_wing=0, hybrid_oh_model='median', hybrid_free_model='tmpl', hybrid_edge=0,
-            **kwargs):
+            sky_align=False, **kwargs):
 
     for obj_exp, sky_exp, dit in matched_exposures:
         # sky_exp is either one SKY file (classic, from match_obj_sky) or a
@@ -233,6 +233,27 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
                 if logger is not None:
                     logger.warning('-- skysub_det/{0} {1}: classic O - S'.format(os.path.basename(hyb_path), why))
                 use_hyb = False
+
+        # slitlet-end alignment (pyspark/cubes/sky_align.py): reconstruct() wrote the SKY cube aligned to this
+        # OBJECT frame to sky_align/; it replaces the mean-angle SKY cube of sky/ in the classic O - S
+        if sky_align and not multi:
+            al_path = os.path.join(inputdir, subdir, 'sky_align', os.path.basename(obj_exp))
+            why = None
+            if not os.path.isfile(al_path):
+                why = 'missing'
+            else:
+                al_sky = fits.getheader(al_path).get('HIERARCH ESO PYSPARK SKY ALIGN SKY')
+                if al_sky is None or 'SCI_RECONSTRUCTED_{0}'.format(al_sky) != os.path.basename(sky_exp):
+                    why = 'was made from SKY {0}, not {1}'.format(al_sky, os.path.basename(sky_exp))
+                elif os.path.getmtime(al_path) < os.path.getmtime(obj_exp):
+                    why = 'is older than sky/{0}'.format(os.path.basename(obj_exp))
+            if why is None:
+                sky_files = [al_path]
+                if logger is not None:
+                    logger.info('-- Aligned SKY cube sky_align/{0}'.format(os.path.basename(al_path)))
+            elif logger is not None:
+                logger.warning('-- sky_align/{0} {1}: mean-angle SKY cube {2}'.format(
+                    os.path.basename(al_path), why, os.path.basename(sky_exp)))
 
         input_path = os.path.split(obj_exp)[0]
         output_path = os.path.join(inputdir, subdir, 'science')
@@ -367,6 +388,9 @@ def zap_sky_v2(matched_exposures, logger=None, obsband=None, subdir=None,
                     ofile[0].header[key] = (val, com)
                 ofile[0].header['HISTORY'] = 'Sky: {0} of {1} SKY frame(s), scale={2}, nan={3}'.format(
                     sky_combine, len(sky_exp), sky_scale, sky_nan)
+            if sky_files[0] != sky_exp and not multi:
+                ofile[0].header['HIERARCH ESO PYSPARK SKY ALIGN'] = (True, 'SKY cube aligned at slitlet ends')
+                ofile[0].header['HISTORY'] = 'Sky: sky_align/{0}'.format(os.path.basename(sky_files[0]))
             if use_hyb:
                 ofile[0].header['HIERARCH ESO PYSPARK SKY HYBRID'] = (True, 'detector-level O-S + sky-only model')
                 ofile[0].header['HIERARCH ESO PYSPARK SKY HYBRID WING'] = (int(hybrid_wing), 'IFU-median in OH wings 2..W')
@@ -492,6 +516,8 @@ def subtract_sky(logger=None, subdir=None, obsband=None,
         # sub_thermal would run after the rescaling; the DRP removes the thermal
         # component before scaling (kmos_priv_sky_tweak) - not implemented
         raise ValueError('sky_scale is not implemented for the K-band tbsub path')
+    if kwargs.get('sky_align', False) and (not classic or sky_method != 'zapv2' or kwargs.get('hybrid_sky', False)):
+        raise ValueError('sky_align works only with the classic nearest-sky zapv2 subtraction (no multi-sky, no hybrid)')
     if kwargs.get('hybrid_sky', False) and (not classic or tbsub or sky_method != 'zapv2'):
         raise ValueError('hybrid_sky works only with the classic nearest-sky zapv2 subtraction (no multi-sky, no K tbsub)')
 

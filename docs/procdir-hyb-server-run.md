@@ -443,3 +443,74 @@ telluric step with the existing index:
 python scripts/telluric_combined.py apply --comb kmos_comb_hybe_IZ --index telluric_frame_index_ohlin.json \
        --tell telluric_all --out kmos_comb_hybe_IZ_tell       # YJ alike
 ```
+
+## Slitlet-end alignment run (PROCDIR_HALN, H, `sky_align = True`)
+
+Fixes the one-plane sky-line spikes/dips in the 2-3 slitlet-end rows of the H cubes (hybrid-sky.md 'Sky lines at the
+slitlet ends', cause and fix). kmos_server_haln_H.cfg = kmos_server_hyb_H.cfg (PROCDIR_OHLIN setup,
+`sky_cal_angle = object`, rv_mode = interp) plus `sky_align = True`, `sky_align_dx = measure`. The option acts in the
+reconstruction (one aligned SKY cube per OBJECT frame in `<OB>/sky_align/`), so this is a full run from the dc frames:
+prepare_procdir_ohlin.py WITHOUT --reuse links /local_storage/KOLJA/PROCDIR (dc frames, calibrations) into
+PROCDIR_HALN; nothing else is read or written. Needs the commit with pyspark/cubes/sky_align.py first: older code
+ignores `sky_align` silently (check the log lines below).
+
+```bash
+cd ~/pyspark_my_way && git pull && git log -1 --oneline
+pgrep -af "reduce_kmos|esorex|kmos_sci_red"      # must print nothing
+
+# 0. smoke test on the first OB (SPT2040, the local test OB), same procdir as the full run, about 20-30 min
+python scripts/prepare_procdir_ohlin.py scripts/kmos_server_haln_H_test.cfg --dry-run
+python scripts/prepare_procdir_ohlin.py scripts/kmos_server_haln_H_test.cfg
+mkdir -p /local_storage/KOLJA/hyb_work/Haln_test && cd /local_storage/KOLJA/hyb_work/Haln_test
+env PYTHONPATH=$HOME/pyspark_my_way python $HOME/pyspark_my_way/scripts/reduce_kmos.py \
+    -p $HOME/pyspark_my_way/scripts/kmos_server_haln_H_test.cfg > haln_Htest.out 2>&1
+cd ~/pyspark_my_way && python scripts/prepare_procdir_ohlin.py scripts/kmos_server_haln_H_test.cfg --status
+#    expected: dc 9, sky 9, rv 6, degree 2
+OB=/local_storage/KOLJA/PROCDIR_HALN/KMOS.2026-06-07T07:24:38.627
+ls $OB/sky_align/*.fits | wc -l                                  # expected 6 (no work_* folder left)
+L=$(ls -t $OB/*_H_*.log | head -1)
+grep -c -- "-- sky_align: dc_KMOS" $L; grep -c "Aligned SKY cube" $L     # expected 6 and 6
+grep -c "mean-angle SKY cube" $L                                 # expected 0
+grep -- "-- sky_align: dc_KMOS" $L | cut -c1-250                 # dx det medians about +0.2..+1.1 / ... / -0.6 px
+python -c "import sys; from astropy.io import fits; h = fits.getheader(sys.argv[1]); print(h.get('HIERARCH ESO PYSPARK SKY ALIGN'))" \
+       $(ls $OB/science/*_s_i_bkg2d_rv.fits | head -1)          # expected True
+
+# 1. all 18 OBs (dry run first); the full run redoes the smoke-test OB with the same files
+python scripts/prepare_procdir_ohlin.py scripts/kmos_server_haln_H.cfg --dry-run
+python scripts/prepare_procdir_ohlin.py scripts/kmos_server_haln_H.cfg
+mkdir -p /local_storage/KOLJA/hyb_work/Haln && cd /local_storage/KOLJA/hyb_work/Haln
+nohup env PYTHONPATH=$HOME/pyspark_my_way python $HOME/pyspark_my_way/scripts/reduce_kmos.py \
+      -p $HOME/pyspark_my_way/scripts/kmos_server_haln_H.cfg > haln_H.out 2>&1 &
+cd ~/pyspark_my_way
+
+# 2. finished? only once the job has ended (pgrep -f kmos_server_haln_H.cfg prints nothing)
+grep -c "Finished reducing" /local_storage/KOLJA/hyb_work/Haln/haln_H.out     # expected 18
+grep -c "An error occ" /local_storage/KOLJA/hyb_work/Haln/haln_H.out          # expected 0
+python scripts/prepare_procdir_ohlin.py scripts/kmos_server_haln_H.cfg --status | tail -1
+#    '18 OBs: 18 started, 18 with sky/ cubes, 18 with final cubes, 0 started with a wrong or missing degree'
+for d in /local_storage/KOLJA/PROCDIR_HALN/KMOS.*; do
+  echo "$(basename $d) rv $(ls $d/science/*_rv.fits 2>/dev/null | wc -l) aligned $(ls $d/sky_align/*.fits 2>/dev/null | wc -l)"
+done                                                             # aligned = rv for every OB
+grep -h "mean-angle SKY cube" /local_storage/KOLJA/PROCDIR_HALN/KMOS.*/*_H_*.log | wc -l   # expected 0
+# a Python error in sky_align skips only that OB (traceback in its log, the run goes on), as a failing kmos_sci_red does
+grep -l "sky_align failed\|sky_align: kmos_sci_red failed" /local_storage/KOLJA/PROCDIR_HALN/KMOS.*/*_H_*.log   # expected none
+# offsets that fell back to the flat model (FLAT) or hit the +-0.6 px window: per OB the 'IFUs measured' count
+grep -h -- "-- sky_align: dc_KMOS" /local_storage/KOLJA/PROCDIR_HALN/KMOS.*/*_H_*.log | grep -o "([0-9]*/24 IFUs measured"
+
+# 3. combination as for PROCDIR_HYBE H (step 4 there), new folders
+python scripts/make_edps_input.py H --procdir /local_storage/KOLJA/PROCDIR_HALN --out /local_storage/KOLJA/edps_in_haln_H
+#    expected 'OB folders: 18'
+mkdir -p /home/kreuter/EDPS_data_haln
+sed -i.bak 's#^base_dir=.*#base_dir=/home/kreuter/EDPS_data_haln#' ~/.edps/application.properties
+#    restart edps-gui --port 5007, run cubes_combination on edps_in_haln_H, export to /local_storage/KOLJA/res_haln_H
+python scripts/edps_pick_jobs.py --base /home/kreuter/EDPS_data_haln/KMOS/cubes_combination --band H
+```
+
+Locally afterwards (new folders): `REMOTE_BASE=/local_storage/KOLJA/res_haln_H LOCAL_BASE=kmos_comb_haln_H bash
+scripts/download_combined.sh`, then the telluric step into kmos_comb_haln_H_tell with telluric_frame_index_ohlin.json
+(rv_mode = interp as PROCDIR_OHLIN; the frame names are the same). Checks against kmos_comb_ohlin_tell: WSL
+`~/impl_test/edge/scripts/oh_rows.py` and `lw_rows.py` (edge rows; OHLIN H 51 % of the cubes > 5 sigma), first of all
+XMM2215 31863 (+62/-41 sigma in OHLIN) and the OBs with the largest O-S rotator differences (the residual grows with the
+offset: locally single-frame ends <= 2.6 sigma for dx <= 0.54 px, up to 22 sigma for dx 0.8-1.1 px); central apertures
+and line fluxes as object angle within the noise; `ESO PYSPARK SKY ALIGN SRC<i>` in the sky_align/ cubes tells which
+offsets came from the flat model.

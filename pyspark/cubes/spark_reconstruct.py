@@ -17,7 +17,8 @@ static_cal = os.environ['KMOS_CALIB']
 def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
                 combine=False, reconstruct_cubes=True, use_oh=True,
                 telluric_in_sof=False, recipe_dir=None, lcorr_degree=None, sky_cal_angle='own',
-                hybrid_sky=False, hybrid_min_dangle=20., hybrid_bands='IZ', **kwargs):
+                hybrid_sky=False, hybrid_min_dangle=20., hybrid_bands='IZ', sky_align=False,
+                sky_align_dx='measure', **kwargs):
 
     """ Reconstruct science cubes using spark
 
@@ -28,6 +29,12 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
     and for the calibration angle of the SKY frames (docs/noise-improvements-2026-10.md):
       sky_cal_angle   own (default) | object: reconstruct each SKY frame with the calibrations of the
                       OBJECT frames it is subtracted from (only for the O - S + ZAP route)
+      sky_align       False (default) | True: also reconstruct, for every OBJECT frame, a copy of its SKY
+                      frame aligned to it at the slitlet ends, with its rotator angle, to <OB>/sky_align/
+                      (used by subtract_sky; needs sky_cal_angle = object; docs/hybrid-sky.md, 'Sky lines
+                      at the slitlet ends')
+      sky_align_dx    measure (default) | flat: per-IFU offsets from the frames' OH lines with the
+                      flat-edge model as prior and fallback, or the flat-edge model alone (sky_align.py)
     and for the hybrid sky subtraction (docs/hybrid-sky.md):
       hybrid_sky         True: also write the DRP detector-level sky-subtracted cube of every OBJECT
                          frame whose nearest SKY frame is more than hybrid_min_dangle (deg, default 20)
@@ -65,6 +72,15 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
     if sky_cal_angle == 'object' and sky_method not in ('spark', 'edps'):
         from .sky_calangle import write_sky_copies
         sof_frames, sky_plan = write_sky_copies(sof_frames, skyangle_dir, obsband=obsband, logger=logger)
+
+    #slitlet-end alignment of the SKY frames (per OBJECT frame, after the main reconstruction below)
+    if isinstance(sky_align, str):
+        sky_align = sky_align.strip().lower() in ('true', 'yes', '1')
+    if sky_align:
+        if sky_cal_angle != 'object' or sky_method in ('spark', 'edps'):
+            raise ValueError('sky_align = True needs sky_cal_angle = object and the O - S + ZAP route')
+        if hybrid_sky:
+            raise ValueError('sky_align = True and hybrid_sky = True together are not implemented')
 
     #write temporary .sof file to feed to
     outfile = '{0}.sof'.format(id_gen())
@@ -145,6 +161,24 @@ def reconstruct(logger=None, subdir=None, obsband=None, sky_method='spark',
                 clean_move(frame_out, os.path.join(kwargs['outputdir'], subdir, 'sky'))
         if os.path.isfile(frame_out2):
             clean_move(frame_out2, os.path.join(kwargs['outputdir'], subdir, 'sky'))
+
+    #slitlet-end alignment: one aligned SKY cube per OBJECT frame, same calibrations, OH_SPEC, recipe,
+    #lcorr degree and kmos_sci_red arguments as above
+    if sky_align:
+        from .sky_align import align_skies
+        with open(outfile) as fh:
+            cal_lines = [line.strip() for line in fh if line.strip() and not line.strip().endswith(' SCIENCE')]
+        try:
+            nal = align_skies([frame for frame, _ in frames], cal_lines, caldir, kwargs['outputdir'], subdir,
+                              obsband, routine_args, dx_mode=sky_align_dx, esorex_opts=esorex_opts,
+                              env=lcorr_env, logger=logger)
+        except Exception:
+            #not caught in reduce_kmos.py: an exception here would stop the whole run, not only this OB
+            if logger is not None:
+                logger.exception('-- sky_align failed for {0}: OB skipped'.format(subdir))
+            nal = -1
+        if nal < 0:
+            return 1
 
     #hybrid sky subtraction: detector-level O - S for the OBJECT frames with a rotator mismatch,
     #same calibrations, OH_SPEC, recipe and lcorr degree as above
